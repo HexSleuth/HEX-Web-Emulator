@@ -1,0 +1,1868 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<title>HEX Web Emulator</title>
+
+<!-- Font Awesome 6 (Free) -->
+<link rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
+      integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A=="
+      crossorigin="anonymous" referrerpolicy="no-referrer"/>
+
+<style>
+  :root{
+    --bg:#0b0d12; --panel:#141922; --panel2:#1d2431; --line:#2a3444;
+    --fg:#e8eef7; --mut:#8fa0b8; --acc:#4c8dff; --ok:#2fbf83; --err:#ff5d5d;
+    --warn:#ffb020; --ram8:#7dff9f;
+    --icon-size:13px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--fg);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    min-height:100%;overscroll-behavior:none}
+  #app{max-width:1100px;margin:0 auto;padding:12px;contain:layout style}
+
+  i.fa-solid, i.fa-regular, i.fa-brands{
+    font-size:var(--icon-size);line-height:1;display:inline-block;
+    transition:transform .15s ease, color .15s ease;flex:none;
+  }
+  button i, label.btn i{pointer-events:none}
+
+  /* ===================== TOOLBAR ===================== */
+  .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;
+       background:var(--panel);border:1px solid var(--line);border-radius:12px;
+       padding:10px;margin-bottom:10px}
+  .bar h1{font-size:15px;margin:0 10px 0 0;font-weight:700;letter-spacing:.3px;
+          white-space:nowrap;display:inline-flex;align-items:center;gap:8px}
+  .bar h1 i{color:var(--acc);font-size:15px}
+  .bar h1 span{color:var(--acc)}
+  .bar h1 .ram-chip{
+    font-size:10px;padding:2px 7px;border-radius:10px;
+    background:rgba(125,255,159,.14);color:var(--ram8);
+    border:1px solid rgba(125,255,159,.4);font-weight:700;letter-spacing:.3px;
+    margin-left:4px;display:none;
+  }
+  .bar h1 .ram-chip.show{display:inline-flex;align-items:center;gap:4px}
+  .bar h1 .ram-chip i{font-size:9px;color:var(--ram8)}
+
+  button,label.btn{
+    background:var(--panel2);color:var(--fg);border:1px solid var(--line);
+    padding:8px 12px;border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;
+    transition:background .1s,border-color .1s,transform .1s;
+    user-select:none;display:inline-flex;align-items:center;gap:7px;white-space:nowrap;
+  }
+  button:hover:not(:disabled),label.btn:hover{background:#26303f;border-color:#3a4860;transform:translateY(-1px)}
+  button:hover:not(:disabled) i, label.btn:hover i{transform:scale(1.18)}
+  button:active:not(:disabled),label.btn:active{transform:translateY(0)}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  button.primary{background:var(--acc);border-color:var(--acc);color:#fff}
+  button.primary:hover:not(:disabled){background:#3d7ce8}
+  button.danger{background:#3a1d22;border-color:#5a2a32;color:#ffb4b4}
+  button.danger:hover:not(:disabled){background:#4a252b;border-color:#6a323a}
+  button.toggle[aria-pressed="true"]{background:var(--acc);border-color:var(--acc);color:#fff}
+
+  /* ===================== SELECT / INPUT ===================== */
+  select{
+    background:var(--panel2);color:var(--fg);border:1px solid var(--line);
+    padding:8px 28px 8px 34px;border-radius:9px;font-size:13px;font-weight:600;
+    cursor:pointer;appearance:none;outline:none;
+    background-image:linear-gradient(45deg,transparent 50%,var(--mut) 50%),
+                     linear-gradient(135deg,var(--mut) 50%,transparent 50%);
+    background-position:calc(100% - 14px) 50%,calc(100% - 9px) 50%;
+    background-size:5px 5px,5px 5px;background-repeat:no-repeat;transition:border-color .15s;
+  }
+  select:hover{border-color:#3a4860}
+  .select-wrap{position:relative;display:inline-flex;align-items:center}
+  .select-wrap > i{position:absolute;left:11px;pointer-events:none;color:var(--mut);font-size:12px}
+  .select-wrap:hover > i{color:var(--acc)}
+
+  input[type=text]{
+    flex:1 1 260px;min-width:180px;background:var(--panel2);color:var(--fg);
+    border:1px solid var(--line);border-radius:9px;padding:8px 11px 8px 34px;
+    font-size:13px;outline:none;transition:border-color .15s;
+  }
+  input[type=text]:focus{border-color:var(--acc)}
+  .input-wrap{position:relative;display:flex;flex:1 1 260px;align-items:center}
+  .input-wrap > i{position:absolute;left:12px;pointer-events:none;color:var(--mut);font-size:12px}
+  .input-wrap:focus-within > i{color:var(--acc)}
+
+  input[type=range]{width:100%;accent-color:var(--acc);cursor:pointer}
+
+  /* ===================== EMULATOR SHELL ===================== */
+  #emulator-shell{
+    position:relative;background:#000;border:1px solid var(--line);border-radius:12px;
+    overflow:hidden;width:100%;aspect-ratio:4/3;
+    contain:strict;transform:translateZ(0);will-change:transform;backface-visibility:hidden;
+  }
+  #emulator-shell:fullscreen{border-radius:0;aspect-ratio:auto;height:100vh}
+  #game{width:100%;height:100%;display:flex;align-items:center;justify-content:center;
+        contain:strict;transform:translateZ(0)}
+  #game > *{max-width:100%;max-height:100%}
+  #game canvas{
+    width:100%!important;height:100%!important;display:block;
+    image-rendering:crisp-edges;image-rendering:-webkit-optimize-contrast;
+    transform:translateZ(0);backface-visibility:hidden;
+  }
+
+  #overlay{
+    position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;gap:12px;background:rgba(6,8,12,.92);text-align:center;
+    padding:20px;z-index:5;transform:translateZ(0);
+  }
+  #overlay.hidden{display:none}
+  #overlay h2{margin:0;font-size:17px;font-weight:700;
+              display:inline-flex;align-items:center;gap:9px}
+  #overlay h2 i{color:var(--acc);font-size:18px}
+  #overlay p{margin:0;font-size:13px;color:var(--mut);max-width:520px;line-height:1.55}
+  #overlay code{background:var(--panel2);padding:1px 6px;border-radius:4px;font-size:12px;
+                color:#cfd8e6;border:1px solid var(--line)}
+  .spinner{width:38px;height:38px;border:3px solid #2a3444;border-top-color:var(--acc);
+           border-radius:50%;animation:spin .8s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  #bar-progress{width:min(340px,80%);height:6px;background:#1d2431;border-radius:4px;
+                overflow:hidden;display:none}
+  #bar-fill{height:100%;width:0%;background:var(--acc);transition:width .2s}
+
+  #fps-hud{
+    position:absolute;top:8px;right:8px;z-index:6;
+    background:rgba(6,8,12,.78);color:#7dff9f;
+    font:600 12px/1.4 ui-monospace,Menlo,Consolas,monospace;
+    padding:6px 10px;border-radius:7px;border:1px solid #2a3444;
+    pointer-events:none;display:none;min-width:110px;text-align:right;
+    transform:translateZ(0);will-change:transform;contain:strict;
+  }
+  #fps-hud.show{display:block}
+  #fps-hud .row{display:flex;justify-content:space-between;gap:8px;align-items:center}
+  #fps-hud .lbl{color:var(--mut);font-weight:500;display:inline-flex;align-items:center;gap:5px}
+  #fps-hud .lbl i{font-size:10px;color:var(--mut)}
+  #fps-hud .warn{color:var(--warn)}
+  #fps-hud .bad{color:var(--err)}
+
+  #auto-badge{
+    position:absolute;top:8px;left:8px;z-index:6;
+    background:rgba(6,8,12,.82);color:var(--fg);
+    font-size:11px;font-weight:600;
+    padding:6px 11px;border-radius:7px;border:1px solid #2a3444;
+    pointer-events:none;display:none;max-width:70%;
+    transform:translateZ(0);will-change:transform;contain:strict;
+    align-items:center;gap:7px;
+  }
+  #auto-badge.show{display:inline-flex}
+  #auto-badge i{color:var(--acc);font-size:11px}
+  #auto-badge .k{color:var(--acc);font-weight:700}
+  #auto-badge .v{color:var(--mut);margin-left:2px}
+  #auto-badge .ram-tag{color:var(--ram8);font-weight:700}
+
+  /* ===================== STATUS ===================== */
+  .status{font-size:12px;color:var(--mut);padding:8px 11px;background:var(--panel);
+          border:1px solid var(--line);border-radius:9px;margin-top:10px;min-height:34px;
+          display:flex;align-items:center;gap:9px;flex-wrap:wrap;contain:layout}
+  .status i{font-size:11px;color:var(--mut)}
+  .status .stat{display:inline-flex;align-items:center;gap:6px}
+  .status .stat i{color:var(--acc)}
+  .dot{width:8px;height:8px;border-radius:50%;background:#555;flex:none}
+  .dot.on{background:var(--ok);box-shadow:0 0 8px var(--ok)}
+  .dot.err{background:var(--err);box-shadow:0 0 8px var(--err)}
+  .dot.load{background:var(--acc);animation:pulse 1s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+  .sep{color:#2a3444}
+
+  .row{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+
+  /* ===================== PERF PANEL ===================== */
+  .perf-panel{
+    background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    padding:12px;margin-top:10px;contain:layout
+  }
+  .perf-head{
+    display:flex;justify-content:space-between;align-items:center;
+    margin-bottom:10px;gap:10px;flex-wrap:wrap
+  }
+  .perf-head h2{margin:0;font-size:13px;font-weight:700;letter-spacing:.4px;
+                text-transform:uppercase;color:var(--mut);
+                display:inline-flex;align-items:center;gap:8px}
+  .perf-head h2 i{color:var(--acc);font-size:14px}
+  .perf-head .badges{display:flex;gap:6px;flex-wrap:wrap}
+  .badge{font-size:10.5px;padding:3px 9px;border-radius:20px;background:var(--panel2);
+         border:1px solid var(--line);color:var(--mut);font-weight:600;
+         display:inline-flex;align-items:center;gap:5px}
+  .badge i{font-size:9.5px}
+  .badge.ok{background:rgba(47,191,131,.15);border-color:rgba(47,191,131,.4);color:#7dff9f}
+  .badge.ok i{color:#7dff9f}
+  .badge.warn{background:rgba(255,176,32,.12);border-color:rgba(255,176,32,.35);color:var(--warn)}
+  .badge.warn i{color:var(--warn)}
+  .badge.bad{background:rgba(255,93,93,.13);border-color:rgba(255,93,93,.35);color:#ff8a8a}
+  .badge.bad i{color:#ff8a8a}
+  .badge.info{background:rgba(76,141,255,.13);border-color:rgba(76,141,255,.35);color:#9fc4ff}
+  .badge.info i{color:#9fc4ff}
+  .badge.ram8{background:rgba(125,255,159,.13);border-color:rgba(125,255,159,.4);color:var(--ram8)}
+  .badge.ram8 i{color:var(--ram8)}
+
+  .device-banner{
+    background:var(--panel2);border:1px solid var(--line);border-radius:9px;
+    padding:10px 12px;margin-bottom:12px;font-size:12px;color:var(--mut);
+    display:flex;gap:10px;align-items:center;flex-wrap:wrap;line-height:1.5
+  }
+  .device-banner > i.fa-solid{
+    color:var(--acc);font-size:15px;background:rgba(76,141,255,.12);
+    padding:6px;border-radius:6px;border:1px solid rgba(76,141,255,.3)
+  }
+  .device-banner b{color:var(--fg)}
+  .device-banner .sep{color:#2a3444;margin:0 2px}
+  .device-banner .ram8-note{
+    display:inline-flex;align-items:center;gap:5px;
+    background:rgba(125,255,159,.12);color:var(--ram8);
+    border:1px solid rgba(125,255,159,.35);border-radius:6px;
+    padding:3px 8px;font-size:11px;font-weight:600;
+  }
+  .device-banner .ram8-note i{color:var(--ram8);font-size:10px}
+
+  /* Device override row */
+  .device-override{
+    display:flex;gap:8px;align-items:center;flex-wrap:wrap;
+    padding:9px 12px;background:var(--panel2);border:1px solid var(--line);
+    border-radius:9px;margin-bottom:12px;font-size:12px
+  }
+  .device-override > label{
+    color:var(--mut);font-weight:600;font-size:11.5px;
+    display:inline-flex;align-items:center;gap:7px
+  }
+  .device-override > label i{color:var(--acc);font-size:11px}
+  .device-override select{font-size:12px;padding:6px 26px 6px 30px}
+  .device-override .reset-override{
+    padding:5px 10px;font-size:11.5px;background:transparent;border-color:transparent;
+    color:var(--mut)
+  }
+  .device-override .reset-override:hover{color:var(--fg);background:var(--panel)}
+
+  .presets{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;align-items:center}
+  .presets button{padding:7px 12px;font-size:12px;gap:6px}
+  .presets button i{font-size:11px}
+  .presets button[aria-pressed="true"]{background:var(--acc);border-color:var(--acc);color:#fff}
+  .presets button[aria-pressed="true"] i{color:#fff}
+  .presets .auto-lbl{font-size:11px;color:var(--mut);margin-right:4px;font-weight:600;
+                     display:inline-flex;align-items:center;gap:6px}
+  .presets .auto-lbl i{color:var(--acc);font-size:10px}
+  .presets .auto-btn{background:rgba(76,141,255,.14);border-color:rgba(76,141,255,.5);color:#9fc4ff}
+  .presets .auto-btn i{color:#9fc4ff}
+  .presets .auto-btn[aria-pressed="true"]{background:var(--acc);border-color:var(--acc);color:#fff}
+  .presets .auto-btn[aria-pressed="true"] i{color:#fff}
+
+  .perf-grid{
+    display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));
+    gap:14px 18px
+  }
+  .field{display:flex;flex-direction:column;gap:5px}
+  .field label{font-size:11.5px;color:var(--mut);font-weight:600;
+               display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .field label > span:first-child{display:inline-flex;align-items:center;gap:6px}
+  .field label > span:first-child i{color:var(--mut);font-size:10.5px}
+  .field label .val{color:var(--fg);font-family:ui-monospace,monospace;font-size:11px}
+  .field label .auto-tag{font-size:9.5px;padding:1px 7px;border-radius:10px;
+                          background:rgba(76,141,255,.16);color:#9fc4ff;
+                          border:1px solid rgba(76,141,255,.35);font-weight:700;
+                          letter-spacing:.3px;text-transform:uppercase;
+                          display:inline-flex;align-items:center;gap:4px}
+  .field label .auto-tag i{font-size:9px;color:#9fc4ff}
+  .field .hint{font-size:10.5px;color:#6b7c93;line-height:1.4}
+  .field select{width:100%;padding:6px 26px 6px 30px;font-size:12px}
+  .field.auto-locked{opacity:.55;pointer-events:none}
+  .field.auto-locked label > span:first-child i{color:var(--acc)}
+  /* RAM-powered fields */
+  .field.ram-powered label > span:first-child i{color:var(--ram8)}
+  .field.ram-powered .hint{color:var(--ram8);opacity:.75}
+
+  .keys{font-size:11.5px;color:var(--mut);line-height:1.9;margin-top:12px;
+        background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+  .keys b{color:var(--fg)}
+  .keys b i{color:var(--acc);margin-right:5px}
+  .keys kbd{background:var(--panel2);border:1px solid var(--line);border-bottom-width:2px;
+            border-radius:5px;padding:1px 6px;font-family:ui-monospace,Menlo,Consolas,monospace;
+            font-size:11px;color:var(--fg)}
+
+  /* ===================== CORE CARDS ===================== */
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));
+        gap:8px;margin-top:10px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;
+        contain:layout style;position:relative;transition:border-color .15s,transform .15s}
+  .card:hover{border-color:#3a4860;transform:translateY(-1px)}
+  .card h3{margin:0 0 4px;font-size:13px;font-weight:700;
+           display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .card h3 .icon-box{
+    width:22px;height:22px;border-radius:6px;
+    background:rgba(76,141,255,.14);border:1px solid rgba(76,141,255,.3);
+    display:inline-flex;align-items:center;justify-content:center;flex:none
+  }
+  .card h3 .icon-box i{color:var(--acc);font-size:11px}
+  .card p{margin:0;font-size:11.5px;color:var(--mut);line-height:1.5;
+          display:inline-flex;align-items:center;gap:6px}
+  .card p i{color:var(--mut);font-size:10px}
+  .card .exts{font-family:ui-monospace,monospace;font-size:11px;color:var(--acc);
+              margin-top:6px;display:flex;align-items:center;gap:6px}
+  .card .exts i{font-size:10px;color:var(--acc);opacity:.7}
+  .card .perf{font-size:10.5px;margin-top:6px;color:var(--mut);line-height:1.5;
+              display:inline-flex;align-items:center;gap:6px}
+  .card .perf i{font-size:10px}
+  .card .perf b{color:var(--fg)}
+  .card .perf.heavy i{color:var(--err)}
+  .card .perf.medium i{color:var(--warn)}
+  .card .perf.light i{color:var(--ok)}
+  .card .ram-fit{
+    font-size:9.5px;margin-top:6px;display:none;
+    align-items:center;gap:5px;color:var(--ram8);
+    padding:2px 7px;border-radius:10px;
+    background:rgba(125,255,159,.1);border:1px solid rgba(125,255,159,.3);
+    width:fit-content
+  }
+  .card .ram-fit.show{display:inline-flex}
+  .card .ram-fit i{font-size:9px;color:var(--ram8)}
+  .card .auto-pick{display:inline-flex;align-items:center;gap:4px;
+                   font-size:9.5px;padding:2px 8px;border-radius:10px;
+                   background:rgba(47,191,131,.15);color:#7dff9f;
+                   border:1px solid rgba(47,191,131,.4);margin-left:4px;font-weight:700}
+  .card .auto-pick i{font-size:9px;color:#7dff9f}
+
+  .hidden{display:none!important}
+  @media(max-width:560px){
+    .bar h1{font-size:13px}
+    .bar h1 i{font-size:13px}
+    .bar h1 .ram-chip{font-size:9px}
+    #overlay h2{font-size:15px}
+    #overlay p{font-size:12px}
+    .perf-grid{grid-template-columns:1fr}
+    #auto-badge{font-size:10px;max-width:75%}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ============ TOOLBAR ============ -->
+  <div class="bar">
+    <h1>
+      <i class="fa-solid fa-gamepad"></i> Retro <span>Web</span>
+      <span class="ram-chip" id="ram-chip"><i class="fa-solid fa-memory"></i><span id="ram-chip-text">8 GB</span></span>
+    </h1>
+
+    <div class="select-wrap" title="Override auto-detected core">
+      <i class="fa-solid fa-microchip"></i>
+      <select id="core-select"></select>
+    </div>
+
+    <label class="btn" for="file-input"><i class="fa-solid fa-folder-open"></i> Open ROM/ISO</label>
+    <input id="file-input" type="file" class="hidden"
+           accept=".nes,.fds,.unf,.unif,.nsf,.iso,.cso,.pbp,.elf,.prx,.jar,.jad,
+                   .snes,.smc,.sfc,.swc,.fig,.gba,.gb,.gbc,.nds,
+                   .md,.gen,.smd,.32x,.sms,.gg,.n64,.z64,.v64,
+                   .bin,.cue,.img,.chd,.pce,.ngp,.ngc,.ws,.wsc,.col,.vb,.zip,.7z">
+
+    <button id="btn-load" class="primary" disabled><i class="fa-solid fa-play"></i> Load</button>
+    <button id="btn-perf" class="toggle" aria-pressed="true"><i class="fa-solid fa-bolt"></i> Performance</button>
+    <button id="btn-fps" class="toggle"><i class="fa-solid fa-chart-line"></i> FPS</button>
+    <button id="btn-fullscreen" disabled><i class="fa-solid fa-expand"></i> Fullscreen</button>
+    <button id="btn-reset" disabled><i class="fa-solid fa-rotate-right"></i> Reset</button>
+    <button id="btn-stop" class="danger" disabled><i class="fa-solid fa-stop"></i> Stop</button>
+  </div>
+
+  <!-- ============ EMULATOR ============ -->
+  <div id="emulator-shell">
+    <div id="game"></div>
+    <div id="auto-badge"></div>
+    <div id="fps-hud">
+      <div class="row"><span class="lbl"><i class="fa-solid fa-gauge-high"></i>FPS</span><span id="hud-fps">—</span></div>
+      <div class="row"><span class="lbl"><i class="fa-solid fa-clock"></i>FT</span><span id="hud-ft">—</span></div>
+    </div>
+    <div id="overlay">
+      <div class="spinner" id="spin" style="display:none"></div>
+      <h2><i class="fa-solid fa-gamepad"></i> <span id="ov-title-text">Retro Web Emulator</span></h2>
+      <p id="ov-text">
+        Optimized for <b>8 GB RAM</b>. Open a ROM/ISO — the widget detects the
+        console, probes your device, and applies the best graphics profile
+        automatically.
+      </p>
+      <div id="bar-progress"><div id="bar-fill"></div></div>
+    </div>
+  </div>
+
+  <!-- ============ STATUS ============ -->
+  <div class="status">
+    <span class="dot" id="dot-state"></span>
+    <span class="stat"><i class="fa-solid fa-circle-info"></i><span id="st-state">Idle</span></span>
+    <span class="sep">|</span>
+    <span class="stat"><i class="fa-solid fa-microchip"></i><span id="st-core">Core: —</span></span>
+    <span class="sep">|</span>
+    <span class="stat"><i class="fa-solid fa-compact-disc"></i><span id="st-game">Game: none</span></span>
+    <span class="sep">|</span>
+    <span class="stat"><i class="fa-solid fa-sliders"></i><span id="st-perf">Auto-tuned: waiting</span></span>
+  </div>
+
+  <!-- ============ URL LOADER ============ -->
+  <div class="row">
+    <div class="input-wrap">
+      <i class="fa-solid fa-link"></i>
+      <input id="url-input" type="text" spellcheck="false"
+             placeholder="https://example.com/game.nes  (direct link to ROM)"/>
+    </div>
+    <button id="btn-load-url" disabled><i class="fa-solid fa-cloud-arrow-down"></i> Load from URL</button>
+  </div>
+
+  <!-- ============ PERF PANEL ============ -->
+  <div class="perf-panel" id="perf-panel">
+    <div class="perf-head">
+      <h2><i class="fa-solid fa-gauge-high"></i> Auto-Detected Performance</h2>
+      <div class="badges" id="perf-badges">
+        <span class="badge" id="bg-render"><i class="fa-solid fa-palette"></i><span>Render: —</span></span>
+        <span class="badge" id="bg-threads"><i class="fa-solid fa-diagram-project"></i><span>Threads: —</span></span>
+        <span class="badge" id="bg-device"><i class="fa-solid fa-desktop"></i><span>Device: —</span></span>
+        <span class="badge" id="bg-mem"><i class="fa-solid fa-memory"></i><span>RAM: —</span></span>
+        <span class="badge" id="bg-cores"><i class="fa-solid fa-microchip"></i><span>CPU: —</span></span>
+        <span class="badge" id="bg-core"><i class="fa-solid fa-puzzle-piece"></i><span>Core: —</span></span>
+      </div>
+    </div>
+
+    <div class="device-banner" id="device-banner">
+      <i class="fa-solid fa-magnifying-glass"></i>
+      <span id="device-text">Probing device capabilities…</span>
+    </div>
+
+    <!-- Device profile override -->
+    <div class="device-override">
+      <label for="device-override-select">
+        <i class="fa-solid fa-sliders"></i>Device profile:
+      </label>
+      <div class="select-wrap" style="flex:0 0 auto">
+        <i class="fa-solid fa-desktop"></i>
+        <select id="device-override-select">
+          <option value="auto" selected>Auto (detected)</option>
+          <option value="desktop-high">Desktop 8 GB+ (unlock rewind)</option>
+          <option value="desktop-mid">Desktop 4–7 GB</option>
+          <option value="laptop-low">Laptop low-end</option>
+          <option value="mobile-high">Mobile high-end</option>
+          <option value="mobile-low">Mobile low-end</option>
+        </select>
+      </div>
+      <button class="reset-override" id="btn-reset-override" title="Re-probe device">
+        <i class="fa-solid fa-arrows-rotate"></i> Re-probe
+      </button>
+    </div>
+
+    <div class="presets" id="preset-row">
+      <span class="auto-lbl"><i class="fa-solid fa-wand-magic-sparkles"></i>Profile:</span>
+      <button data-preset="auto" class="auto-btn" aria-pressed="true"><i class="fa-solid fa-wand-magic-sparkles"></i> Auto</button>
+      <button data-preset="ultra"><i class="fa-solid fa-rocket"></i> Ultra Perf</button>
+      <button data-preset="perf"><i class="fa-solid fa-bolt"></i> Performance</button>
+      <button data-preset="balanced"><i class="fa-solid fa-scale-balanced"></i> Balanced</button>
+      <button data-preset="quality"><i class="fa-solid fa-sparkles"></i> Quality</button>
+      <button data-preset="ultra-q"><i class="fa-solid fa-gem"></i> Ultra Quality</button>
+    </div>
+
+    <div class="perf-grid">
+
+      <div class="field" id="f-res">
+        <label>
+          <span><i class="fa-solid fa-up-right-and-down-left-from-center"></i>Resolution scale</span>
+          <span style="display:inline-flex;gap:6px;align-items:center">
+            <span class="auto-tag" id="auto-res" style="display:none"><i class="fa-solid fa-wand-magic-sparkles"></i>AUTO</span>
+            <span class="val" id="v-res">1.0×</span>
+          </span>
+        </label>
+        <input type="range" id="s-res" min="0.5" max="4" step="0.5" value="1">
+        <div class="hint">8 GB RAM unlocks up to 3× on light cores.</div>
+      </div>
+
+      <div class="field" id="f-fps">
+        <label>
+          <span><i class="fa-solid fa-gauge-high"></i>Target FPS</span>
+          <span style="display:inline-flex;gap:6px;align-items:center">
+            <span class="auto-tag" id="auto-fps" style="display:none"><i class="fa-solid fa-wand-magic-sparkles"></i>AUTO</span>
+            <span class="val" id="v-fps">60</span>
+          </span>
+        </label>
+        <input type="range" id="s-fps" min="30" max="120" step="10" value="60">
+        <div class="hint">Matched to your display refresh rate.</div>
+      </div>
+
+      <div class="field" id="f-skip">
+        <label>
+          <span><i class="fa-solid fa-forward-step"></i>Frame skip</span>
+          <span style="display:inline-flex;gap:6px;align-items:center">
+            <span class="auto-tag" id="auto-skip" style="display:none"><i class="fa-solid fa-wand-magic-sparkles"></i>AUTO</span>
+            <span class="val" id="v-skip">Auto</span>
+          </span>
+        </label>
+        <select id="s-skip">
+          <option value="auto" selected>Auto (recommended)</option>
+          <option value="0">Off — never skip</option>
+          <option value="1">Skip 1 frame</option>
+          <option value="2">Skip 2 frames</option>
+          <option value="3">Skip 3 frames (fast)</option>
+        </select>
+        <div class="hint">Auto skips only when the core falls behind.</div>
+      </div>
+
+      <div class="field" id="f-audio">
+        <label>
+          <span><i class="fa-solid fa-volume-high"></i>Audio latency</span>
+          <span style="display:inline-flex;gap:6px;align-items:center">
+            <span class="auto-tag" id="auto-audio" style="display:none"><i class="fa-solid fa-wand-magic-sparkles"></i>AUTO</span>
+            <span class="val" id="v-audio">Medium</span>
+          </span>
+        </label>
+        <select id="s-audio">
+          <option value="low">Low (may crackle)</option>
+          <option value="medium" selected>Medium (balanced)</option>
+          <option value="high">High (most stable)</option>
+        </select>
+        <div class="hint">8 GB uses High buffer for zero crackle.</div>
+      </div>
+
+      <div class="field" id="f-render">
+        <label>
+          <span><i class="fa-solid fa-palette"></i>Renderer</span>
+          <span style="display:inline-flex;gap:6px;align-items:center">
+            <span class="auto-tag" id="auto-render" style="display:none"><i class="fa-solid fa-wand-magic-sparkles"></i>AUTO</span>
+            <span class="val" id="v-render">Auto</span>
+          </span>
+        </label>
+        <select id="s-render">
+          <option value="auto" selected>Auto (WebGL preferred)</option>
+          <option value="webgl">Force WebGL</option>
+          <option value="canvas">Force Canvas (2D)</option>
+        </select>
+        <div class="hint">WebGL is dramatically faster.</div>
+      </div>
+
+      <div class="field" id="f-shader">
+        <label>
+          <span><i class="fa-solid fa-wand-sparkles"></i>Shaders</span>
+          <span style="display:inline-flex;gap:6px;align-items:center">
+            <span class="auto-tag" id="auto-shader" style="display:none"><i class="fa-solid fa-wand-magic-sparkles"></i>AUTO</span>
+            <span class="val" id="v-shader">Off</span>
+          </span>
+        </label>
+        <select id="s-shader">
+          <option value="off" selected>Off (fastest)</option>
+          <option value="crt">CRT scanlines</option>
+          <option value="2x">2× HQ scale</option>
+        </select>
+        <div class="hint">8 GB enables CRT on light cores.</div>
+      </div>
+
+      <div class="field" id="f-rewind">
+        <label>
+          <span><i class="fa-solid fa-backward"></i>Rewind</span>
+          <span style="display:inline-flex;gap:6px;align-items:center">
+            <span class="auto-tag" id="auto-rewind" style="display:none"><i class="fa-solid fa-wand-magic-sparkles"></i>AUTO</span>
+            <span class="val" id="v-rewind">Off</span>
+          </span>
+        </label>
+        <select id="s-rewind">
+          <option value="off" selected>Off</option>
+          <option value="on">On (~150 MB RAM)</option>
+        </select>
+        <div class="hint" id="rewind-hint">Auto-on for 8 GB on light/medium cores.</div>
+      </div>
+
+      <div class="field" id="f-upscale">
+        <label>
+          <span><i class="fa-solid fa-magnifying-glass-plus"></i>Texture upscaling</span>
+          <span style="display:inline-flex;gap:6px;align-items:center">
+            <span class="auto-tag" id="auto-upscale" style="display:none"><i class="fa-solid fa-wand-magic-sparkles"></i>AUTO</span>
+            <span class="val" id="v-upscale">Off</span>
+          </span>
+        </label>
+        <select id="s-upscale">
+          <option value="off" selected>Off (native)</option>
+          <option value="2x">2× (PSP/PS1)</option>
+        </select>
+        <div class="hint">8 GB enables 2× textures on PSP/PS1.</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ============ SUPPORTED CORES ============ -->
+  <div class="grid" id="core-cards"></div>
+
+  <!-- ============ HELP ============ -->
+  <div class="keys">
+    <b><i class="fa-solid fa-keyboard"></i>Keyboard:</b>
+    <kbd>↑↓←→</kbd> D-Pad ·
+    <kbd>X</kbd> A · <kbd>Z</kbd> B · <kbd>S</kbd> X · <kbd>A</kbd> Y ·
+    <kbd>Q</kbd> L · <kbd>W</kbd> R ·
+    <kbd>Enter</kbd> Start · <kbd>Shift</kbd> Select ·
+    <kbd>Space</kbd> Fast-forward · <kbd>F1</kbd> Save · <kbd>F2</kbd> Load ·
+    <kbd>F3</kbd> EmulatorJS menu ·
+    <kbd>Ctrl+Shift+P</kbd> Toggle panel · <kbd>Ctrl+Shift+F</kbd> FPS<br/>
+    <b><i class="fa-solid fa-memory"></i>8 GB RAM profile:</b> rewind, CRT shaders,
+    high audio buffer, 2× textures on PSP/PS1, and up to 3× resolution on light
+    cores are all enabled automatically. Use the <b>Device profile</b> dropdown if
+    your browser's RAM probe is inaccurate.
+  </div>
+
+</div>
+
+<script>
+/* ==========================================================================
+   RETRO WEB EMULATOR — 8 GB RAM OPTIMIZED EDITION
+   --------------------------------------------------------------------------
+   Changes vs. previous version:
+     1. RAM tier classification (<2 / 2-3 / 4-7 / 8-15 / 16+ GB)
+     2. autoTune() now uses RAM tier to unlock:
+          • Rewind on light + medium cores (was always off)
+          • High audio buffer (8192) when RAM >= 8
+          • CRT shader on light cores when RAM >= 8 + GPU high/mid
+          • Texture upscaling 2× on PSP/PS1 when RAM >= 8
+          • Higher resolution caps on light cores
+     3. NEW: Device profile override dropdown — force a tier when the browser
+        probe misreports RAM (Firefox doesn't expose deviceMemory)
+     4. NEW: RAM chip in toolbar + "AUTO" tag colour on RAM-powered fields
+     5. NEW: Per-card "Fits 8 GB profile" chip on capable cores
+   ========================================================================== */
+(function () {
+'use strict';
+
+/* ==========================================================================
+   1. CORE REGISTRY
+   ========================================================================== */
+const CORES = [
+  { id:'nes',     label:'Nintendo NES',       system:'FCEUmm',          weight:'light',
+    icon:'fa-solid fa-gamepad',
+    exts:['nes','fds','unf','unif','nsf'] },
+  { id:'gb',      label:'Game Boy / Color',   system:'Gambatte',        weight:'light',
+    icon:'fa-solid fa-gamepad',
+    exts:['gb','gbc'] },
+  { id:'gba',     label:'Game Boy Advance',   system:'mGBA',            weight:'light',
+    icon:'fa-solid fa-gamepad',
+    exts:['gba'] },
+  { id:'snes',    label:'Super Nintendo',     system:'Snes9x',          weight:'light',
+    icon:'fa-solid fa-gamepad',
+    exts:['snes','smc','sfc','swc','fig'] },
+  { id:'segaMD',  label:'Sega Genesis',       system:'Genesis Plus GX', weight:'light',
+    icon:'fa-solid fa-gamepad',
+    exts:['md','gen','smd'] },
+  { id:'sega32x', label:'Sega 32X',           system:'PicoDrive',       weight:'medium',
+    icon:'fa-solid fa-gamepad',
+    exts:['32x'] },
+  { id:'segaMS',  label:'Master System / GG', system:'Genesis Plus GX', weight:'light',
+    icon:'fa-solid fa-gamepad',
+    exts:['sms','gg'] },
+  { id:'pce',     label:'PC Engine / TG16',   system:'Mednafen PCE',    weight:'light',
+    icon:'fa-solid fa-gamepad',
+    exts:['pce'] },
+  { id:'ngp',     label:'Neo Geo Pocket',     system:'Mednafen NGP',    weight:'light',
+    icon:'fa-solid fa-gamepad',
+    exts:['ngp','ngc'] },
+  { id:'ws',      label:'WonderSwan',         system:'Mednafen WSwan',  weight:'light',
+    icon:'fa-solid fa-gamepad',
+    exts:['ws','wsc'] },
+  { id:'col',     label:'ColecoVision',       system:'Gearcoleco',      weight:'light',
+    icon:'fa-solid fa-gamepad',
+    exts:['col'] },
+  { id:'vb',      label:'Virtual Boy',        system:'Beetle VB',       weight:'medium',
+    icon:'fa-solid fa-vr-cardboard',
+    exts:['vb'] },
+  { id:'psx',     label:'PlayStation 1',      system:'PCSX-ReARMed',    weight:'heavy',
+    icon:'fa-solid fa-compact-disc',
+    exts:['bin','cue','img','chd'] },
+  { id:'n64',     label:'Nintendo 64',        system:'Mupen64Plus',     weight:'heavy',
+    icon:'fa-solid fa-cube',
+    exts:['n64','z64','v64'] },
+  { id:'nds',     label:'Nintendo DS',        system:'DeSmuME',         weight:'heavy',
+    icon:'fa-solid fa-mobile-screen-button',
+    exts:['nds'] },
+  { id:'psp',     label:'Sony PSP',           system:'PPSSPP',          weight:'heavy',
+    icon:'fa-solid fa-compact-disc',
+    exts:['iso','cso','pbp','elf','prx'] },
+  { id:'j2me',    label:'Java ME (J2ME)',     system:'FreeJ2ME',        weight:'medium',
+    icon:'fa-brands fa-java',
+    exts:['jar','jad'] }
+];
+
+const EJS_CDN = 'https://cdn.emulatorjs.org/stable/data/';
+const LS_KEY  = 'retro-web-settings-v4-8gb';
+
+/* ==========================================================================
+   2. DEVICE PROBE  (with RAM tier)
+   ========================================================================== */
+const DEVICE = (function probe() {
+  const d = {
+    gpuTier:'mid', deviceTier:'laptop', ram:4, ramTier:'4-7',
+    cores: navigator.hardwareConcurrency || 2,
+    webgl:false, webgl2:false, renderer:'unknown',
+    threads:false, mobile:false,
+    touch: ('ontouchstart' in window) || navigator.maxTouchPoints > 0,
+    highDpi: (window.devicePixelRatio || 1) >= 2,
+    refreshRate: 60,
+    ramSource: 'estimate'   // 'deviceMemory' | 'override' | 'estimate'
+  };
+
+  /* --- WebGL probes --- */
+  try {
+    const c = document.createElement('canvas');
+    const gl2 = c.getContext('webgl2');
+    if (gl2) {
+      d.webgl2 = true; d.webgl = true;
+      const dbg = gl2.getExtension('WEBGL_debug_renderer_info');
+      if (dbg) d.renderer = gl2.getParameter(dbg.UNMASKED_RENDERER_WEBGL) || d.renderer;
+    } else {
+      const gl1 = c.getContext('webgl') || c.getContext('experimental-webgl');
+      if (gl1) {
+        d.webgl = true;
+        const dbg = gl1.getExtension('WEBGL_debug_renderer_info');
+        if (dbg) d.renderer = gl1.getParameter(dbg.UNMASKED_RENDERER_WEBGL) || d.renderer;
+      }
+    }
+  } catch (e) {}
+
+  /* --- Threads --- */
+  d.threads = (typeof SharedArrayBuffer !== 'undefined' &&
+               (self.crossOriginIsolated === true ||
+                (typeof window.crossOriginIsolated !== 'undefined' && window.crossOriginIsolated)));
+
+  /* --- Mobile --- */
+  const ua = navigator.userAgent || '';
+  d.mobile = /Android|iPhone|iPad|iPod|Mobile|Tablet|Silk/i.test(ua) ||
+             (navigator.maxTouchPoints > 1 && window.innerWidth < 900);
+
+  /* --- RAM: real value from Chromium, else assume 8 GB (per user config) --- */
+  if (typeof navigator.deviceMemory === 'number') {
+    d.ram = navigator.deviceMemory;
+    d.ramSource = 'deviceMemory';
+  } else {
+    // Firefox and Safari don't expose deviceMemory. Since the user told us
+    // they have 8 GB, use 8 as the fallback estimate.
+    d.ram = 8;
+    d.ramSource = 'estimate';
+  }
+
+  /* --- Classify everything --- */
+  classifyDevice(d);
+  return d;
+})();
+
+/**
+ * Compute deviceTier / gpuTier / ramTier from raw probe data.
+ * Called once at boot, and again whenever the user changes the override.
+ */
+function classifyDevice(d) {
+  /* RAM tier */
+  if      (d.ram >= 16) d.ramTier = '16+';
+  else if (d.ram >= 8)  d.ramTier = '8-15';
+  else if (d.ram >= 4)  d.ramTier = '4-7';
+  else if (d.ram >= 2)  d.ramTier = '2-3';
+  else                  d.ramTier = '<2';
+
+  /* Device tier (combination of RAM, cores, mobile flag) */
+  if (d.mobile) {
+    d.deviceTier = (d.cores >= 6 && d.ram >= 4) ? 'mobile-high' : 'mobile-low';
+  } else if (d.cores >= 8 && d.ram >= 8) {
+    d.deviceTier = 'desktop-high';
+  } else if (d.cores >= 4 && d.ram >= 4) {
+    d.deviceTier = 'desktop-mid';
+  } else {
+    d.deviceTier = 'laptop-low';
+  }
+
+  /* GPU tier from renderer string */
+  const r = (d.renderer || '').toLowerCase();
+  if (/(rtx|radeon rx (5|6|7)|arc a|apple m[1-9]|adreno 7|mali-g7|mali-g[89])/.test(r)) {
+    d.gpuTier = 'high';
+  } else if (/(gtx|radeon rx|iris xe|apple m1|adreno 6|mali-g[56])/.test(r)) {
+    d.gpuTier = 'mid';
+  } else if (/(intel hd|uhd|adreno [1-5]|mali-[t4]|powervr|swiftshader|software)/.test(r)) {
+    d.gpuTier = 'low';
+  } else if (d.mobile && d.ram <= 2) {
+    d.gpuTier = 'low';
+  }
+
+  /* High-RAM bump: 8 GB + decent cores lifts to at least desktop-mid */
+  if (!d.mobile && d.ram >= 8 && d.cores >= 4 && d.deviceTier === 'laptop-low') {
+    d.deviceTier = 'desktop-mid';
+  }
+  /* 8 GB + mid/high GPU lifts to desktop-high */
+  if (!d.mobile && d.ram >= 8 && d.gpuTier !== 'low' && d.cores >= 6) {
+    d.deviceTier = 'desktop-high';
+  }
+}
+
+/* Refresh-rate measurement (async, non-blocking) */
+(function measureRefresh() {
+  try {
+    let frames = 0, start = performance.now();
+    (function tick() {
+      frames++;
+      const t = performance.now();
+      if (t - start >= 200) {
+        DEVICE.refreshRate = Math.round((frames * 1000) / (t - start));
+        return;
+      }
+      requestAnimationFrame(tick);
+    })();
+  } catch (e) {}
+})();
+
+/* ==========================================================================
+   3. SETTINGS
+   ========================================================================== */
+const DEFAULT_SETTINGS = {
+  preset: 'auto',
+  resolution: 1.0, targetFps: 60, frameSkip: 'auto',
+  audio: 'medium', renderer: 'auto', shader: 'off',
+  rewind: 'off', upscale: 'off',
+  showFps: false, showPerf: true,
+  deviceOverride: 'auto',   // 'auto' | 'desktop-high' | 'desktop-mid' | 'laptop-low' | 'mobile-high' | 'mobile-low'
+  autoFields: { resolution:false, targetFps:false, frameSkip:false,
+                audio:false, renderer:false, shader:false, rewind:false, upscale:false }
+};
+
+function loadSettings() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+    return Object.assign(JSON.parse(JSON.stringify(DEFAULT_SETTINGS)), JSON.parse(raw));
+  } catch (e) { return JSON.parse(JSON.stringify(DEFAULT_SETTINGS)); }
+}
+function saveSettings(s) { try { localStorage.setItem(LS_KEY, JSON.stringify(s)); } catch (e) {} }
+
+const S = loadSettings();
+
+/* Apply the saved override to the live DEVICE object */
+function applyOverride() {
+  if (S.deviceOverride && S.deviceOverride !== 'auto') {
+    DEVICE.deviceTier = S.deviceOverride;
+    /* If the override implies 8 GB desktop, also bump RAM so downstream
+       tuning behaves as if navigator.deviceMemory had reported 8. */
+    if (S.deviceOverride === 'desktop-high') {
+      DEVICE.ram = Math.max(DEVICE.ram, 8);
+      DEVICE.ramSource = 'override';
+      DEVICE.ramTier = '8-15';
+    } else if (S.deviceOverride === 'desktop-mid') {
+      DEVICE.ram = Math.max(DEVICE.ram, 4);
+      DEVICE.ramSource = 'override';
+      DEVICE.ramTier = DEVICE.ram >= 8 ? '8-15' : '4-7';
+    } else if (S.deviceOverride === 'mobile-high') {
+      DEVICE.ram = Math.max(DEVICE.ram, 4);
+      DEVICE.ramSource = 'override';
+    }
+  }
+}
+applyOverride();
+
+/* ==========================================================================
+   4. PRESETS
+   ========================================================================== */
+const PRESETS = {
+  'ultra':    { resolution:0.5, targetFps:30, frameSkip:'auto', audio:'low',
+                renderer:'webgl', shader:'off', rewind:'off', upscale:'off' },
+  'perf':     { resolution:1.0, targetFps:60, frameSkip:'auto', audio:'low',
+                renderer:'webgl', shader:'off', rewind:'off', upscale:'off' },
+  'balanced': { resolution:1.0, targetFps:60, frameSkip:'auto', audio:'medium',
+                renderer:'auto',  shader:'off', rewind:'off', upscale:'off' },
+  'quality':  { resolution:2.0, targetFps:60, frameSkip:'0',    audio:'medium',
+                renderer:'webgl', shader:'off', rewind:'off', upscale:'off' },
+  'ultra-q':  { resolution:3.0, targetFps:60, frameSkip:'0',    audio:'high',
+                renderer:'webgl', shader:'crt', rewind:'off', upscale:'2x' }
+};
+
+/* ==========================================================================
+   5. AUTO-TUNE  (now RAM-aware)
+   ========================================================================== */
+function autoTune(consoleWeight) {
+  const ramHigh  = DEVICE.ramTier === '8-15' || DEVICE.ramTier === '16+';
+  const ramUltra = DEVICE.ramTier === '16+';
+
+  let base;
+  switch (DEVICE.deviceTier) {
+    case 'desktop-high':
+      base = {
+        resolution: ramUltra ? 3.0 : 2.0,
+        targetFps: 60, frameSkip:'0', audio:'high',
+        renderer:'webgl', shader:'off', rewind:'off', upscale:'off'
+      };
+      break;
+    case 'desktop-mid':
+      base = {
+        resolution: 1.5, targetFps: 60, frameSkip:'auto', audio:'medium',
+        renderer:'webgl', shader:'off', rewind:'off', upscale:'off'
+      };
+      break;
+    case 'mobile-high':
+      base = {
+        resolution: 1.0, targetFps: 60, frameSkip:'auto', audio:'medium',
+        renderer:'webgl', shader:'off', rewind:'off', upscale:'off'
+      };
+      break;
+    case 'mobile-low':
+      base = {
+        resolution: 1.0, targetFps: 60, frameSkip:'auto', audio:'low',
+        renderer:'webgl', shader:'off', rewind:'off', upscale:'off'
+      };
+      break;
+    default: /* laptop-low */
+      base = {
+        resolution: 1.0, targetFps: 60, frameSkip:'auto', audio:'medium',
+        renderer:'auto',  shader:'off', rewind:'off', upscale:'off'
+      };
+  }
+
+  /* ----- GPU caps ----- */
+  if (DEVICE.gpuTier === 'low') {
+    base.resolution = Math.min(base.resolution, 1.0);
+    base.renderer = 'canvas';
+    base.shader = 'off';
+    base.upscale = 'off';
+    base.rewind = 'off';
+  } else if (DEVICE.gpuTier === 'mid') {
+    base.resolution = Math.min(base.resolution, 2.0);
+  }
+  if (!DEVICE.webgl) base.renderer = 'canvas';
+
+  /* ----- Console weight adjustments ----- */
+  if (consoleWeight === 'heavy') {
+    /* PSP / N64 / NDS / PSX */
+    if (DEVICE.gpuTier === 'high' && DEVICE.deviceTier === 'desktop-high') {
+      base.resolution = ramUltra ? 3.0 : 2.0;
+      base.frameSkip = '0';
+      base.renderer = 'webgl';
+      base.upscale = ramHigh ? '2x' : 'off';   // PSP/PS1 texture upscale
+      /* Heavy cores: rewind only if 16+ GB — it costs ~150 MB per second */
+      base.rewind = ramUltra ? 'on' : 'off';
+    } else if (DEVICE.gpuTier === 'mid' || DEVICE.deviceTier === 'desktop-mid') {
+      base.resolution = 1.0;
+      base.frameSkip = 'auto';
+      base.renderer = 'webgl';
+      base.audio = ramHigh ? 'high' : 'medium';
+      base.upscale = ramHigh ? '2x' : 'off';
+    } else if (DEVICE.deviceTier === 'mobile-high') {
+      base.resolution = 1.0;
+      base.frameSkip = 'auto';
+      base.audio = 'low';
+      base.renderer = 'webgl';
+    } else {
+      base.resolution = 0.5;
+      base.targetFps = 30;
+      base.frameSkip = 'auto';
+      base.audio = 'low';
+      base.renderer = DEVICE.webgl ? 'webgl' : 'canvas';
+      base.shader = 'off';
+      base.upscale = 'off';
+      base.rewind = 'off';
+    }
+
+  } else if (consoleWeight === 'medium') {
+    /* J2ME, 32X, Virtual Boy */
+    if (DEVICE.deviceTier === 'mobile-low' || DEVICE.gpuTier === 'low') {
+      base.resolution = 1.0;
+      base.frameSkip = 'auto';
+      base.audio = 'low';
+      base.rewind = 'off';
+    } else if (ramHigh) {
+      /* 8 GB unlocks rewind + higher res on medium cores */
+      base.resolution = Math.max(base.resolution, 1.5);
+      base.rewind = 'on';
+      base.audio = 'high';
+    }
+
+  } else {
+    /* Light cores: NES, SNES, GB, GBA, Genesis, etc. */
+    if (DEVICE.gpuTier === 'high' && !DEVICE.mobile) {
+      base.resolution = ramHigh ? 3.0 : 2.0;
+      base.shader = 'crt';
+    } else if (DEVICE.gpuTier === 'mid' && !DEVICE.mobile) {
+      base.resolution = ramHigh ? 2.0 : 1.5;
+      base.shader = 'off';
+    }
+    if (base.frameSkip === 'auto') base.frameSkip = '0';
+    /* 8 GB: enable rewind + high audio buffer */
+    if (ramHigh) {
+      base.rewind = 'on';
+      base.audio = 'high';
+    }
+  }
+
+  /* ----- Refresh-rate match ----- */
+  const rr = DEVICE.refreshRate || 60;
+  if (rr >= 120) base.targetFps = 120;
+  else if (rr >= 90) base.targetFps = 90;
+  else if (rr >= 60) base.targetFps = 60;
+  else base.targetFps = Math.max(30, rr);
+  if (consoleWeight === 'heavy' && DEVICE.mobile && base.targetFps > 60) {
+    base.targetFps = 60;
+  }
+
+  return base;
+}
+
+/* Fields that were set by the 8 GB profile (for green icons) */
+function isRamPowered(field) {
+  const ramHigh = DEVICE.ramTier === '8-15' || DEVICE.ramTier === '16+';
+  if (!ramHigh) return false;
+  return (field === 'rewind' && S.rewind === 'on') ||
+         (field === 'upscale' && S.upscale === '2x') ||
+         (field === 'shader' && S.shader === 'crt') ||
+         (field === 'audio'  && S.audio  === 'high');
+}
+
+/* ==========================================================================
+   6. HELPERS
+   ========================================================================== */
+const $ = function (id) { return document.getElementById(id); };
+function extOf(name) {
+  const m = String(name || '').match(/\.([a-z0-9]+)(?:\?|#|$)/i);
+  return m ? m[1].toLowerCase() : '';
+}
+function coreForExt(ext) {
+  for (let i = 0; i < CORES.length; i++) if (CORES[i].exts.indexOf(ext) !== -1) return CORES[i];
+  return null;
+}
+function coreById(id) {
+  for (let i = 0; i < CORES.length; i++) if (CORES[i].id === id) return CORES[i];
+  return null;
+}
+function stripExt(name) { return String(name).replace(/\.[^.]+$/, ''); }
+
+/* ==========================================================================
+   7. UI REFS
+   ========================================================================== */
+const coreSelect   = $('core-select');
+const fileInput    = $('file-input');
+const urlInput     = $('url-input');
+const btnLoad      = $('btn-load');
+const btnLoadUrl   = $('btn-load-url');
+const btnPerf      = $('btn-perf');
+const btnFps       = $('btn-fps');
+const btnFull      = $('btn-fullscreen');
+const btnReset     = $('btn-reset');
+const btnStop      = $('btn-stop');
+const gameEl       = $('game');
+const overlay      = $('overlay');
+const ovTitleText  = $('ov-title-text');
+const ovText       = $('ov-text');
+const spinner      = $('spin');
+const barWrap      = $('bar-progress');
+const barFill      = $('bar-fill');
+const dotState     = $('dot-state');
+const stState      = $('st-state');
+const stCore       = $('st-core');
+const stGame       = $('st-game');
+const stPerf       = $('st-perf');
+const coreCardsEl  = $('core-cards');
+const perfPanel    = $('perf-panel');
+const presetRow    = $('preset-row');
+const fpsHud       = $('fps-hud');
+const hudFps       = $('hud-fps');
+const hudFt        = $('hud-ft');
+const autoBadge    = $('auto-badge');
+const deviceText   = $('device-text');
+const ramChip      = $('ram-chip');
+const ramChipText  = $('ram-chip-text');
+const deviceOverrideSelect = $('device-override-select');
+const btnResetOverride     = $('btn-reset-override');
+
+const sRes    = $('s-res'),   vRes    = $('v-res');
+const sFps    = $('s-fps'),   vFps    = $('v-fps');
+const sSkip   = $('s-skip'),  vSkip   = $('v-skip');
+const sAudio  = $('s-audio'), vAudio  = $('v-audio');
+const sRender = $('s-render'),vRender = $('v-render');
+const sShader = $('s-shader'),vShader = $('v-shader');
+const sRewind = $('s-rewind'),vRewind = $('v-rewind');
+const sUpscale= $('s-upscale'),vUpscale=$('v-upscale');
+
+const autoRes     = $('auto-res'),    fRes     = $('f-res');
+const autoFps     = $('auto-fps'),    fFps     = $('f-fps');
+const autoSkip    = $('auto-skip'),   fSkip    = $('f-skip');
+const autoAudio   = $('auto-audio'),  fAudio   = $('f-audio');
+const autoRender  = $('auto-render'), fRender  = $('f-render');
+const autoShader  = $('auto-shader'), fShader  = $('f-shader');
+const autoRewind  = $('auto-rewind'), fRewind  = $('f-rewind');
+const autoUpscale = $('auto-upscale'),fUpscale = $('f-upscale');
+
+const bgRender = $('bg-render'), bgThreads = $('bg-threads');
+const bgDevice = $('bg-device'), bgMem = $('bg-mem'), bgCores = $('bg-cores');
+const bgCore   = $('bg-core');
+
+/* ==========================================================================
+   8. STATE
+   ========================================================================== */
+let currentFile = null, currentUrl = '', currentCoreId = '';
+let currentGameName = '', emulatorBooted = false;
+let fpsRafId = 0, lastFrameTime = 0, framesInWindow = 0, windowStart = 0, currentFps = 0;
+let autoBadgeTimer = 0;
+
+/* Safe badge setter (preserves the icon <i> element) */
+function setBadge(el, text, cls) {
+  const span = el.querySelector('span');
+  if (span) span.textContent = text;
+  if (cls !== undefined) el.className = 'badge' + (cls ? ' ' + cls : '');
+}
+
+/* ==========================================================================
+   9. BUILD CORE CARDS
+   ========================================================================== */
+(function buildCoreUI() {
+  const auto = document.createElement('option');
+  auto.value = '';
+  auto.textContent = 'Auto-detect core';
+  coreSelect.appendChild(auto);
+
+  CORES.forEach(function (c) {
+    const opt = document.createElement('option');
+    opt.value = c.id;
+    opt.textContent = c.label + '  —  ' + c.system;
+    coreSelect.appendChild(opt);
+  });
+
+  const weightLabel = { light:'Light', medium:'Medium', heavy:'Heavy' };
+  const weightIcon  = { light:'fa-solid fa-feather',
+                        medium:'fa-solid fa-weight-hanging',
+                        heavy:'fa-solid fa-dumbbell' };
+
+  CORES.forEach(function (c) {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.dataset.core = c.id;
+    card.innerHTML =
+      '<h3>' +
+        '<span class="icon-box"><i class="' + c.icon + '"></i></span>' +
+        c.label +
+      '</h3>' +
+      '<p><i class="fa-solid fa-microchip"></i>' + c.system + '</p>' +
+      '<div class="exts"><i class="fa-solid fa-file"></i>.' + c.exts.join('  .') + '</div>' +
+      '<div class="perf ' + c.weight + '">' +
+        '<i class="' + weightIcon[c.weight] + '"></i>' +
+        'Load: <b>' + (weightLabel[c.weight] || c.weight) + '</b>' +
+      '</div>' +
+      '<div class="ram-fit"><i class="fa-solid fa-memory"></i>Fits 8 GB profile</div>';
+    coreCardsEl.appendChild(card);
+  });
+})();
+
+/* Show / hide the "Fits 8 GB profile" chip on every card */
+function refreshRamFitChips() {
+  const ramHigh = DEVICE.ramTier === '8-15' || DEVICE.ramTier === '16+';
+  coreCardsEl.querySelectorAll('.card').forEach(function (card) {
+    const coreId = card.dataset.core;
+    const core = coreById(coreId);
+    if (!core) return;
+    const chip = card.querySelector('.ram-fit');
+    /* heavy cores only get the chip on 16+ GB; light/medium on 8+ */
+    const show = ramHigh && (core.weight !== 'heavy' || DEVICE.ramTier === '16+');
+    chip.classList.toggle('show', show);
+  });
+}
+
+/* ==========================================================================
+   10. DEVICE BANNER + BADGES
+   ========================================================================== */
+function renderDeviceInfo() {
+  const tier = {
+    'desktop-high':'Desktop · High-end', 'desktop-mid':'Desktop · Mid-range',
+    'laptop-low':'Laptop · Low-end', 'mobile-high':'Mobile · High-end',
+    'mobile-low':'Mobile · Low-end'
+  }[DEVICE.deviceTier] || DEVICE.deviceTier;
+
+  const gpuLabel = { high:'High', mid:'Mid', low:'Low' }[DEVICE.gpuTier];
+
+  const ramNote = (DEVICE.ramTier === '8-15' || DEVICE.ramTier === '16+')
+    ? ' <span class="ram8-note"><i class="fa-solid fa-bolt"></i>Rewind unlocked</span>'
+    : '';
+
+  const sourceNote = DEVICE.ramSource === 'deviceMemory'
+    ? ''
+    : DEVICE.ramSource === 'override'
+      ? ' <span style="color:#9fc4ff">(override)</span>'
+      : ' <span style="color:#6b7c93">(assumed — set profile below if wrong)</span>';
+
+  deviceText.innerHTML =
+    '<b>' + tier + '</b>' +
+    ' <span class="sep">·</span> GPU: <b>' + gpuLabel + '</b>' +
+    (DEVICE.renderer && DEVICE.renderer !== 'unknown'
+      ? ' <span style="color:#6b7c93">(' + DEVICE.renderer + ')</span>' : '') +
+    ' <span class="sep">·</span> ' + DEVICE.cores + ' CPU cores' +
+    ' <span class="sep">·</span> <b>' + DEVICE.ram + ' GB RAM</b>' + sourceNote +
+    ' <span class="sep">·</span> ' + (DEVICE.refreshRate || 60) + ' Hz display' +
+    ' <span class="sep">·</span> WebGL' + (DEVICE.webgl2 ? '2' : DEVICE.webgl ? '1' : ' ✗') +
+    ramNote;
+
+  /* Toolbar RAM chip */
+  ramChipText.textContent = DEVICE.ram + ' GB';
+  ramChip.classList.toggle('show', DEVICE.ramTier === '8-15' || DEVICE.ramTier === '16+');
+
+  /* Perf badges */
+  setBadge(bgRender,  'Render: '  + (DEVICE.webgl ? (DEVICE.webgl2 ? 'WebGL2 ✓' : 'WebGL1 ✓') : 'Canvas'),
+           DEVICE.webgl ? 'ok' : 'warn');
+  setBadge(bgThreads, 'Threads: ' + (DEVICE.threads ? 'On ✓' : 'Off'),
+           DEVICE.threads ? 'ok' : 'warn');
+  setBadge(bgDevice,  'Device: '  + tier.replace(' · ', '/'), 'info');
+
+  /* RAM badge gets a special class when >= 8 GB */
+  const ramCls = DEVICE.ramTier === '8-15' || DEVICE.ramTier === '16+' ? 'ram8'
+               : DEVICE.ram >= 4 ? 'ok' : 'warn';
+  setBadge(bgMem, 'RAM: ' + DEVICE.ram + ' GB' +
+           (DEVICE.ramTier === '8-15' ? ' ✓' : DEVICE.ramTier === '16+' ? ' ✓✓' : ''),
+           ramCls);
+
+  setBadge(bgCores, 'CPU: ' + DEVICE.cores + ' cores', DEVICE.cores >= 4 ? 'ok' : 'warn');
+
+  refreshRamFitChips();
+}
+
+/* ==========================================================================
+   11. SYNC UI
+   ========================================================================== */
+function reflectSettingsInUI() {
+  sRes.value = String(S.resolution); sFps.value = String(S.targetFps);
+  sSkip.value = S.frameSkip; sAudio.value = S.audio; sRender.value = S.renderer;
+  sShader.value = S.shader; sRewind.value = S.rewind; sUpscale.value = S.upscale;
+
+  vRes.textContent     = S.resolution.toFixed(1) + '×';
+  vFps.textContent     = String(S.targetFps);
+  vSkip.textContent    = S.frameSkip === 'auto' ? 'Auto' :
+                         S.frameSkip === '0' ? 'Off' : 'Skip ' + S.frameSkip;
+  vAudio.textContent   = { low:'Low', medium:'Medium', high:'High' }[S.audio] || S.audio;
+  vRender.textContent  = { auto:'Auto', webgl:'WebGL', canvas:'Canvas' }[S.renderer] || S.renderer;
+  vShader.textContent  = { off:'Off', crt:'CRT', '2x':'2× HQ' }[S.shader] || S.shader;
+  vRewind.textContent  = S.rewind === 'on' ? 'On' : 'Off';
+  vUpscale.textContent = S.upscale === '2x' ? '2×' : 'Off';
+
+  /* Auto tags + dimming */
+  const map = {
+    resolution:[autoRes, fRes], targetFps:[autoFps, fFps],
+    frameSkip:[autoSkip, fSkip], audio:[autoAudio, fAudio],
+    renderer:[autoRender, fRender], shader:[autoShader, fShader],
+    rewind:[autoRewind, fRewind], upscale:[autoUpscale, fUpscale]
+  };
+  Object.keys(map).forEach(function (k) {
+    const on = !!S.autoFields[k];
+    const tag = map[k][0], field = map[k][1];
+    if (tag) tag.style.display = on ? 'inline-flex' : 'none';
+    if (field) field.classList.toggle('auto-locked', on);
+  });
+
+  /* Green "RAM powered" hint on fields the 8 GB profile touched */
+  fRewind.classList.toggle('ram-powered', isRamPowered('rewind'));
+  fUpscale.classList.toggle('ram-powered', isRamPowered('upscale'));
+  fShader.classList.toggle('ram-powered', isRamPowered('shader'));
+  fAudio.classList.toggle('ram-powered', isRamPowered('audio'));
+
+  /* Preset chips */
+  Array.from(presetRow.querySelectorAll('button')).forEach(function (b) {
+    b.setAttribute('aria-pressed', b.dataset.preset === S.preset ? 'true' : 'false');
+  });
+
+  /* Panel + HUD */
+  perfPanel.classList.toggle('hidden', !S.showPerf);
+  btnPerf.setAttribute('aria-pressed', S.showPerf ? 'true' : 'false');
+  fpsHud.classList.toggle('show', S.showFps);
+  btnFps.setAttribute('aria-pressed', S.showFps ? 'true' : 'false');
+
+  /* Status line */
+  const presetName = {
+    'auto':'Auto-tuned ✓', 'ultra':'Ultra Perf', 'perf':'Performance',
+    'balanced':'Balanced', 'quality':'Quality', 'ultra-q':'Ultra Quality', 'custom':'Custom'
+  }[S.preset] || 'Custom';
+  const ramBadge = (DEVICE.ramTier === '8-15' || DEVICE.ramTier === '16+')
+    ? ' · ' + DEVICE.ram + ' GB profile'
+    : '';
+  stPerf.textContent = 'Profile: ' + presetName + ramBadge;
+
+  if (currentCoreId) {
+    const c = coreById(currentCoreId);
+    setBadge(bgCore, 'Core: ' + (c ? c.system : currentCoreId), 'info');
+  } else {
+    setBadge(bgCore, 'Core: —');
+  }
+
+  /* Device override dropdown reflect */
+  deviceOverrideSelect.value = S.deviceOverride || 'auto';
+}
+
+function applyManualPreset(name) {
+  if (!PRESETS[name]) return;
+  Object.assign(S, PRESETS[name]);
+  S.preset = name;
+  Object.keys(S.autoFields).forEach(function (k) { S.autoFields[k] = false; });
+  saveSettings(S);
+  reflectSettingsInUI();
+  if (emulatorBooted) toast('Preset applied — press Reset to reload with new settings.');
+}
+
+function applyAutoProfile(consoleWeight, silent) {
+  const tuned = autoTune(consoleWeight);
+  Object.assign(S, tuned);
+  S.preset = 'auto';
+  Object.keys(S.autoFields).forEach(function (k) { S.autoFields[k] = true; });
+  saveSettings(S);
+  reflectSettingsInUI();
+  if (!silent) { toast('Auto-tuned for ' + consoleWeight + ' console'); showAutoBadge(tuned); }
+  return tuned;
+}
+
+function showAutoBadge(tuned) {
+  if (!autoBadge) return;
+  const ramTag = (DEVICE.ramTier === '8-15' || DEVICE.ramTier === '16+')
+    ? '<span class="ram-tag">' + DEVICE.ram + ' GB</span> · ' : '';
+  const preset = {
+    resolution: tuned.resolution.toFixed(1) + '×',
+    fps:        tuned.targetFps,
+    renderer:   tuned.renderer === 'webgl' ? 'WebGL'
+              : tuned.renderer === 'canvas' ? 'Canvas' : 'Auto',
+    skip:       tuned.frameSkip === 'auto' ? 'Auto'
+              : tuned.frameSkip === '0' ? 'Off' : '×' + tuned.frameSkip,
+    rewind:     tuned.rewind === 'on' ? ' · rewind ✓' : '',
+    upscale:    tuned.upscale === '2x' ? ' · tex 2×' : ''
+  };
+  autoBadge.innerHTML =
+    '<i class="fa-solid fa-wand-magic-sparkles"></i> ' +
+    '<span class="k">AUTO</span> ' +
+    '<span class="v">' + ramTag + preset.resolution + ' · ' + preset.fps + 'fps · ' +
+    preset.renderer + ' · skip ' + preset.skip + preset.rewind + preset.upscale + '</span>';
+  autoBadge.classList.add('show');
+  clearTimeout(autoBadgeTimer);
+  autoBadgeTimer = setTimeout(function () { autoBadge.classList.remove('show'); }, 6500);
+}
+
+function markCustom() {
+  S.preset = 'custom';
+  Object.keys(S.autoFields).forEach(function (k) { S.autoFields[k] = false; });
+  saveSettings(S);
+  reflectSettingsInUI();
+}
+
+/* ==========================================================================
+   12. EVENT WIRING
+   ========================================================================== */
+presetRow.addEventListener('click', function (e) {
+  const btn = e.target.closest('button[data-preset]');
+  if (!btn) return;
+  const name = btn.dataset.preset;
+  if (name === 'auto') {
+    const c = currentCoreId ? coreById(currentCoreId) : null;
+    applyAutoProfile(c ? c.weight : 'light');
+  } else applyManualPreset(name);
+});
+
+sRes.addEventListener('input', function () { S.resolution = parseFloat(sRes.value); markCustom(); });
+sFps.addEventListener('input', function () { S.targetFps = parseInt(sFps.value, 10); markCustom(); });
+sSkip.addEventListener('change', function () { S.frameSkip = sSkip.value; markCustom(); });
+sAudio.addEventListener('change', function () { S.audio = sAudio.value; markCustom(); });
+sRender.addEventListener('change', function () { S.renderer = sRender.value; markCustom(); });
+sShader.addEventListener('change', function () { S.shader = sShader.value; markCustom(); });
+sRewind.addEventListener('change', function () { S.rewind = sRewind.value; markCustom(); });
+sUpscale.addEventListener('change', function () { S.upscale = sUpscale.value; markCustom(); });
+
+btnPerf.addEventListener('click', function () { S.showPerf = !S.showPerf; saveSettings(S); reflectSettingsInUI(); });
+btnFps.addEventListener('click',  function () { S.showFps  = !S.showFps;  saveSettings(S); reflectSettingsInUI(); });
+
+/* ---- Device profile override ---- */
+deviceOverrideSelect.addEventListener('change', function () {
+  S.deviceOverride = deviceOverrideSelect.value;
+  saveSettings(S);
+  /* Re-apply the override to DEVICE, then re-render everything */
+  if (S.deviceOverride === 'auto') {
+    /* Reset to raw probe values */
+    DEVICE.ram = (typeof navigator.deviceMemory === 'number') ? navigator.deviceMemory : 8;
+    DEVICE.ramSource = (typeof navigator.deviceMemory === 'number') ? 'deviceMemory' : 'estimate';
+    classifyDevice(DEVICE);
+  } else {
+    applyOverride();
+  }
+  renderDeviceInfo();
+  /* Re-run auto-tune if we're in auto mode */
+  if (S.preset === 'auto') {
+    const c = currentCoreId ? coreById(currentCoreId) : null;
+    applyAutoProfile(c ? c.weight : 'light', true);
+  }
+  reflectSettingsInUI();
+  toast('Device profile: ' + (deviceOverrideSelect.options[deviceOverrideSelect.selectedIndex].text));
+  if (emulatorBooted) toast('Press Reset to apply the new profile.');
+});
+
+btnResetOverride.addEventListener('click', function () {
+  deviceOverrideSelect.value = 'auto';
+  deviceOverrideSelect.dispatchEvent(new Event('change'));
+});
+
+/* ==========================================================================
+   13. STATUS / OVERLAY
+   ========================================================================== */
+function setDot(state) {
+  dotState.classList.remove('on','err','load');
+  if (state === 'on' || state === 'err' || state === 'load') dotState.classList.add(state);
+}
+function setState(text, dot) { stState.textContent = text; setDot(dot || ''); }
+function setCore(text) { stCore.textContent = 'Core: ' + text; }
+function setGame(text) { stGame.textContent = 'Game: ' + text; }
+
+function showOverlay(title, html, busy) {
+  overlay.classList.remove('hidden');
+  ovTitleText.textContent = title;
+  ovText.innerHTML = html;
+  spinner.style.display = busy ? 'block' : 'none';
+  barWrap.style.display = busy ? 'block' : 'none';
+}
+function hideOverlay() { overlay.classList.add('hidden'); }
+function setProgress(pct) { barFill.style.width = Math.max(0, Math.min(100, pct)) + '%'; }
+function enableControls(on) {
+  btnFull.disabled = !on; btnReset.disabled = !on; btnStop.disabled = !on;
+}
+
+let toastEl = null;
+function toast(msg) {
+  if (!toastEl) {
+    toastEl = document.createElement('div');
+    toastEl.style.cssText =
+      'position:absolute;left:50%;bottom:14px;transform:translateX(-50%) translateZ(0);' +
+      'background:rgba(6,8,12,.9);color:#e8eef7;font-size:12px;font-weight:600;' +
+      'padding:8px 14px;border-radius:8px;border:1px solid #2a3444;z-index:7;' +
+      'pointer-events:none;transition:opacity .25s;will-change:opacity;contain:strict;' +
+      'display:inline-flex;align-items:center;gap:8px;';
+    overlay.parentElement.appendChild(toastEl);
+  }
+  toastEl.innerHTML = '<i class="fa-solid fa-circle-check" style="color:#7dff9f;font-size:12px"></i>' + msg;
+  toastEl.style.opacity = '1';
+  clearTimeout(toastEl._t);
+  toastEl._t = setTimeout(function () { toastEl.style.opacity = '0'; }, 2400);
+}
+
+/* ==========================================================================
+   14. EJS OPTIONS BUILDERS
+   ========================================================================== */
+function buildBaseOptions() {
+  const opts = {
+    'save-state-location':'browser',
+    'shader': S.shader === 'off' ? 'disabled' : S.shader,
+    'rewindEnabled': S.rewind === 'on',
+    'fastForwardRatio': 3,
+    'fps': S.targetFps,
+    'volume': 1.0
+  };
+  /* Audio buffer: RAM-aware */
+  if (S.audio === 'low')       opts.audioBufferSize = 1024;
+  else if (S.audio === 'high') opts.audioBufferSize = 8192;
+  else                          opts.audioBufferSize = 2048;
+
+  if (S.frameSkip === 'auto') opts.frameskip = 'auto';
+  else if (S.frameSkip === '0') opts.frameskip = 0;
+  else opts.frameskip = parseInt(S.frameSkip, 10);
+  return opts;
+}
+
+function buildCoreOptions(coreId) {
+  const o = {}, res = S.resolution, heavy = S.resolution >= 2.0;
+  const useWebGL = (S.renderer === 'webgl' || (S.renderer === 'auto' && DEVICE.webgl));
+  const ramHigh = DEVICE.ramTier === '8-15' || DEVICE.ramTier === '16+';
+  const ramUltra = DEVICE.ramTier === '16+';
+
+  switch (coreId) {
+    case 'psp':
+      o['ppsspp_cpu_core'] = DEVICE.threads ? 'JIT' : 'Interpreter';
+      o['ppsspp_fast_memory'] = 'enabled';
+      o['ppsspp_ignore_bad_memory_access'] = 'enabled';
+      o['ppsspp_force_lag_sync'] = 'disabled';
+      o['ppsspp_io_threading'] = DEVICE.threads ? 'enabled' : 'disabled';
+      o['ppsspp_multithreaded'] = DEVICE.threads ? 'enabled' : 'disabled';
+      o['ppsspp_software_rendering'] = !useWebGL;
+      o['ppsspp_internal_resolution'] =
+        res >= 3 ? '3x' : res >= 2 ? '2x' : res >= 1.5 ? '1.5x' : res >= 1 ? '1x' : '0.5x';
+      o['ppsspp_texture_scaling_level'] = S.upscale === '2x' ? '2' : '0';
+      o['ppsspp_rendering_mode'] = 'buffered';
+      o['ppsspp_auto_frameskip'] = S.frameSkip === 'auto';
+      o['ppsspp_vertex_cache'] = 'enabled';
+      o['ppsspp_lazy_texture_caching'] = heavy ? 'enabled' : 'disabled';
+      o['ppsspp_texture_replacement'] = ramUltra ? 'enabled' : 'disabled';
+      /* 8 GB: bigger texture cache for smoother heavy scenes */
+      if (ramHigh) {
+        o['ppsspp_texture_cache_scale'] = '2';
+        o['ppsspp_gpu_rendering'] = 'enabled';
+      }
+      break;
+
+    case 'nes':
+      o['fceumm_overclocking'] = '0';
+      o['fceumm_region'] = 'Auto';
+      o['fceumm_ntsc_filter'] = 'disabled';
+      for (let i = 1; i <= 5; i++) o['fceumm_apu_' + i] = 'enabled';
+      break;
+
+    case 'snes':
+      o['snes9x_overclock_superfx'] = '100';
+      o['snes9x_up_down_allowed'] = 'disabled';
+      o['snes9x_apply_patch'] = 'disabled';
+      break;
+
+    case 'gba':
+      o['mgba_gb_model'] = 'Autodetect';
+      o['mgba_color_correction'] = 'OFF';
+      o['mgba_interframe_blending'] = ramHigh ? 'mix' : 'OFF';
+      o['mgba_idle_optimization'] = 'Remove Known';
+      o['mgba_frameskip'] = S.frameSkip === 'auto' ? 'auto' : (parseInt(S.frameSkip, 10) || 0);
+      break;
+
+    case 'n64':
+      o['mupen64plus-CpuCore'] = 'dynamic_recompiler';
+      o['mupen64plus-RspPlugin'] = 'hle';
+      o['mupen64plus-video-plugin'] = useWebGL ? 'glide64' : 'rice';
+      o['mupen64plus-FrameDuping'] = 'True';
+      o['mupen64plus-Framerate'] = 'Original';
+      o['mupen64plus-Resolution'] = res >= 3 ? '960x720' : res >= 2 ? '640x480' : '320x240';
+      o['mupen64plus-BilinearMode'] = res >= 2 ? 'standard' : 'basic';
+      o['mupen64plus-EnableFBEmulation'] = 'False';
+      o['mupen64plus-EnableLegacyBlending'] = 'False';
+      if (ramUltra) {
+        o['mupen64plus-TextureFiltering'] = '3';
+      }
+      break;
+
+    case 'psx':
+      o['pcsx_rearmed_frameskip'] = S.frameSkip === 'auto' ? 'auto' : (parseInt(S.frameSkip, 10) || 0);
+      o['pcsx_rearmed_gpu_thread_rendering'] = DEVICE.threads ? 'enabled' : 'disabled';
+      o['pcsx_rearmed_drc'] = 'enabled';
+      o['pcsx_rearmed_psx_clock'] = '57';
+      if (ramHigh) {
+        o['pcsx_rearmed_memcard1'] = 'enabled';
+        o['pcsx_rearmed_show_bios'] = 'disabled';
+      }
+      break;
+
+    case 'nds':
+      o['desmume_cpu_mode'] = DEVICE.threads ? 'jit' : 'interpreter';
+      o['desmume_arm9_clock'] = res >= 2 ? '67' : '57';
+      o['desmume_frameskip'] = S.frameSkip === 'auto' ? 'auto' : (parseInt(S.frameSkip, 10) || 0);
+      o['desmume_use_cores'] = DEVICE.threads ? '2' : '1';
+      o['desmume_renderer'] = useWebGL ? 'opengl' : 'software';
+      if (ramHigh) {
+        o['desmume_num_cores'] = '2';
+        o['desmume_jit_block_size'] = '100';
+      }
+      break;
+
+    case 'j2me':
+      o['freej2me_screen_width'] = '240';
+      o['freej2me_screen_height'] = '320';
+      o['freej2me_fps'] = '30';
+      break;
+
+    case 'segaMD': case 'sega32x': case 'segaMS':
+      o['genesis_plus_gx_frameskip'] = S.frameSkip === 'auto' ? 'auto' : (parseInt(S.frameSkip, 10) || 0);
+      o['genesis_plus_gx_overclock'] = ramHigh ? '150' : '100';
+      o['genesis_plus_gx_bios'] = 'Auto';
+      break;
+
+    case 'pce':
+      o['pce_frameskip'] = S.frameSkip === 'auto' ? 'auto' : (parseInt(S.frameSkip, 10) || 0);
+      o['pce_nospritelimit'] = ramHigh ? 'enabled' : 'disabled';
+      break;
+
+    case 'vb':
+      o['vb_anaglyph_preset'] = 'disabled';
+      o['vb_color_mode'] = 'red/black';
+      break;
+  }
+  return o;
+}
+
+/* ==========================================================================
+   15. FPS MONITOR
+   ========================================================================== */
+function stopFpsMonitor() { if (fpsRafId) cancelAnimationFrame(fpsRafId); fpsRafId = 0; framesInWindow = 0; currentFps = 0; }
+function startFpsMonitor() {
+  stopFpsMonitor();
+  windowStart = performance.now(); lastFrameTime = windowStart; framesInWindow = 0;
+  function loop(now) {
+    if (!emulatorBooted) return;
+    fpsRafId = requestAnimationFrame(loop);
+    framesInWindow++;
+    const dt = now - lastFrameTime; lastFrameTime = now;
+    if (now - windowStart >= 500) {
+      currentFps = (framesInWindow * 1000) / (now - windowStart);
+      framesInWindow = 0; windowStart = now;
+      if (S.showFps) {
+        hudFps.textContent = currentFps.toFixed(0);
+        hudFps.className = currentFps >= 55 ? '' : currentFps >= 40 ? 'warn' : 'bad';
+        hudFt.textContent = dt.toFixed(1) + 'ms';
+        hudFt.className = dt <= 20 ? '' : dt <= 30 ? 'warn' : 'bad';
+      }
+    }
+  }
+  fpsRafId = requestAnimationFrame(loop);
+}
+
+/* ==========================================================================
+   16. TEARDOWN / LOADER
+   ========================================================================== */
+function teardown() {
+  stopFpsMonitor();
+  try { if (window.EJS_emulator && typeof window.EJS_emulator.destroy === 'function') window.EJS_emulator.destroy(); } catch (e) {}
+  document.querySelectorAll('script[data-ejs-loader="1"]').forEach(function (s) { try { s.remove(); } catch (e) {} });
+  ['EJS_emulator','EJS_player','EJS_core','EJS_gameUrl','EJS_gameName','EJS_pathtodata',
+   'EJS_startOnLoaded','EJS_ready','EJS_color','EJS_backgroundColor','EJS_volume',
+   'EJS_defaultOptions','EJS_language','EJS_Buttons','EJS_gameID','EJS_biosUrl',
+   'EJS_gamePatchUrl','EJS_netplayServer','EJS_threads','EJS_disableDatabases',
+   'EJS_disableLocalStorage','EJS_cacheConfig'].forEach(function (k) { try { delete window[k]; } catch (e) {} });
+  gameEl.innerHTML = '';
+  emulatorBooted = false;
+}
+
+function injectLoader() {
+  return new Promise(function (resolve, reject) {
+    const s = document.createElement('script');
+    s.src = EJS_CDN + 'loader.js';
+    s.setAttribute('data-ejs-loader', '1');
+    s.async = true;
+    s.onload = function () { resolve(); };
+    s.onerror = function () { reject(new Error('Could not download EmulatorJS loader from ' + EJS_CDN + 'loader.js')); };
+    document.head.appendChild(s);
+  });
+}
+
+/* ==========================================================================
+   17. BOOT
+   ========================================================================== */
+function bootEmulator(coreId, src, gameName) {
+  teardown();
+  const coreInfo = coreById(coreId);
+  if (!coreInfo) throw new Error('Unknown core: ' + coreId);
+
+  /* Re-run auto-tune using the live DEVICE object (respects override) */
+  if (S.preset === 'auto' || !PRESETS[S.preset]) {
+    applyAutoProfile(coreInfo.weight, true);
+  }
+
+  window.EJS_player = '#game';
+  window.EJS_core = coreId;
+  window.EJS_gameUrl = src;
+  window.EJS_gameName = stripExt(gameName || 'game');
+  window.EJS_pathtodata = EJS_CDN;
+  window.EJS_startOnLoaded = true;
+  window.EJS_color = '#4c8dff';
+  window.EJS_backgroundColor = '#0b0d12';
+  window.EJS_volume = 1.0;
+  window.EJS_language = 'en-US';
+  if (DEVICE.threads) window.EJS_threads = true;
+
+  window.EJS_defaultOptions = Object.assign({}, buildBaseOptions(), buildCoreOptions(coreId));
+
+  window.EJS_Buttons = {
+    restart:true, playPause:true, saveState:true, loadState:true,
+    gamepad:true, cheat:false, volume:true, saveSavFiles:true,
+    loadSavFiles:true, screenshot:true, quickSave:true, quickLoad:true,
+    fullscreen:true, fastForward:true, slowMotion:false,
+    cacheManager:true, exitEmulation:false
+  };
+
+  window.EJS_ready = function () {
+    emulatorBooted = true;
+    hideOverlay();
+    setState('Running', 'on');
+    enableControls(true);
+    startFpsMonitor();
+    setBadge(bgCore, 'Core: ' + coreInfo.system, 'info');
+
+    coreCardsEl.querySelectorAll('.auto-pick').forEach(function (el) { el.remove(); });
+    const card = coreCardsEl.querySelector('[data-core="' + coreId + '"]');
+    if (card && S.preset === 'auto') {
+      const tag = document.createElement('span');
+      tag.className = 'auto-pick';
+      tag.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i>AUTO';
+      card.querySelector('h3').appendChild(tag);
+    }
+  };
+
+  const presetText = S.preset === 'auto' ? 'auto-tuned for this console' : 'preset: ' + S.preset;
+  const ramLine = (DEVICE.ramTier === '8-15' || DEVICE.ramTier === '16+')
+    ? ' <b style="color:#7dff9f">' + DEVICE.ram + ' GB profile active</b>.'
+    : '';
+
+  setState('Loading core…', 'load');
+  setCore(coreInfo.label + ' (' + coreInfo.system + ')');
+  setGame(gameName);
+  showOverlay('Loading ' + coreInfo.label + '…',
+    'Downloading core <code>' + coreInfo.system + '</code>. Optimized ' + presetText +
+    ' (res ' + S.resolution.toFixed(1) + '×, ' + S.targetFps + 'fps, ' +
+    (S.renderer === 'auto' ? 'auto render' : S.renderer) + ').' + ramLine +
+    ' First load of a heavy core can take 10–30 s.', true);
+  setProgress(5);
+
+  return injectLoader().catch(function (err) {
+    setState('Loader failed', 'err');
+    showOverlay('CDN unreachable',
+      '<span style="color:#ff8a8a">' + String(err.message || err) + '</span><br/><br/>' +
+      'EmulatorJS cores are hosted on <code>' + EJS_CDN + '</code>. ' +
+      'Check your connection or ad-blocker and try again.', false);
+    throw err;
+  });
+}
+
+function startGame(coreId, src, gameName) {
+  try { bootEmulator(coreId, src, gameName); }
+  catch (err) {
+    setState('Error', 'err');
+    showOverlay('Could not start emulator',
+      '<span style="color:#ff8a8a">' + String(err.message || err) + '</span>', false);
+  }
+}
+
+/* ==========================================================================
+   18. USER ACTIONS
+   ========================================================================== */
+fileInput.addEventListener('change', function (e) {
+  const f = e.target.files && e.target.files[0];
+  fileInput.value = '';
+  if (!f) return;
+  currentFile = f; currentUrl = ''; currentGameName = f.name;
+  const ext = extOf(f.name);
+  const manual = coreSelect.value;
+  if (manual) {
+    const c = coreById(manual);
+    if (!c) { setState('Unknown core', 'err'); return; }
+    currentCoreId = c.id; startGame(c.id, f, f.name); return;
+  }
+  const autoCore = coreForExt(ext);
+  if (autoCore) {
+    coreSelect.value = autoCore.id;
+    currentCoreId = autoCore.id;
+    startGame(autoCore.id, f, f.name);
+  } else {
+    setState('Unsupported file', 'err');
+    showOverlay('Unsupported file type',
+      'No core registered for <code>.' + ext + '</code>.<br/><br/>' +
+      'Pick a specific core from the dropdown and try again.', false);
+  }
+});
+
+btnLoad.addEventListener('click', function () {
+  const coreId = coreSelect.value;
+  if (!coreId) {
+    showOverlay('Pick a core',
+      'Choose a specific console from the dropdown, then click <b>Load</b>, or open a file for auto-detection.', false);
+    return;
+  }
+  currentCoreId = coreId;
+  if (currentFile) startGame(coreId, currentFile, currentFile.name);
+  else if (currentUrl) startGame(coreId, currentUrl, currentUrl.split('/').pop());
+  else showOverlay('No game selected', 'Open a file or paste a URL first.', false);
+});
+
+btnLoadUrl.addEventListener('click', function () {
+  const url = urlInput.value.trim();
+  if (!url) { urlInput.focus(); return; }
+  currentUrl = url; currentFile = null;
+  const name = url.split('/').pop().split('?')[0] || 'game';
+  currentGameName = name;
+  const ext = extOf(name);
+  const manual = coreSelect.value;
+  let coreId;
+  if (manual) coreId = manual;
+  else {
+    const auto = coreForExt(ext);
+    if (!auto) {
+      setState('Unsupported URL', 'err');
+      showOverlay('Cannot detect core',
+        'No core registered for <code>.' + ext + '</code>.<br/><br/>' +
+        'Select a core from the dropdown manually and click <b>Load</b>.', false);
+      return;
+    }
+    coreId = auto.id; coreSelect.value = coreId;
+  }
+  currentCoreId = coreId;
+  startGame(coreId, url, name);
+});
+
+urlInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') btnLoadUrl.click(); });
+
+btnFull.addEventListener('click', function () {
+  const shell = $('emulator-shell');
+  if (document.fullscreenElement) document.exitFullscreen();
+  else if (shell.requestFullscreen) shell.requestFullscreen();
+  else if (shell.webkitRequestFullscreen) shell.webkitRequestFullscreen();
+});
+
+btnReset.addEventListener('click', function () {
+  if (emulatorBooted && currentCoreId && (currentFile || currentUrl))
+    startGame(currentCoreId, currentFile || currentUrl, currentGameName);
+});
+
+btnStop.addEventListener('click', function () {
+  teardown();
+  enableControls(false);
+  setState('Idle', '');
+  setCore('—'); setGame('none');
+  currentFile = null; currentUrl = ''; currentGameName = ''; currentCoreId = '';
+  setBadge(bgCore, 'Core: —');
+  coreCardsEl.querySelectorAll('.auto-pick').forEach(function (el) { el.remove(); });
+  showOverlay('Stopped', 'Open another file or paste a URL to start a new game.', false);
+});
+
+/* Drag & drop */
+(function bindDragDrop() {
+  const shell = $('emulator-shell');
+  ['dragenter','dragover'].forEach(function (ev) {
+    shell.addEventListener(ev, function (e) { e.preventDefault(); e.stopPropagation(); });
+  });
+  shell.addEventListener('drop', function (e) {
+    e.preventDefault(); e.stopPropagation();
+    const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (!f) return;
+    const dt = new DataTransfer(); dt.items.add(f);
+    fileInput.files = dt.files;
+    fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+})();
+
+window.addEventListener('keydown', function (e) {
+  if (e.ctrlKey && e.shiftKey && e.code === 'KeyP') { e.preventDefault(); btnPerf.click(); }
+  if (e.ctrlKey && e.shiftKey && e.code === 'KeyF') { e.preventDefault(); btnFps.click(); }
+});
+
+/* ==========================================================================
+   19. INIT
+   ========================================================================== */
+btnLoadUrl.disabled = false;
+renderDeviceInfo();
+reflectSettingsInUI();
+if (!S.showPerf) perfPanel.classList.add('hidden');
+
+const ramGreeting = (DEVICE.ramTier === '8-15' || DEVICE.ramTier === '16+')
+  ? ' Your <b style="color:#7dff9f">' + DEVICE.ram + ' GB RAM</b> profile is active: ' +
+    'rewind, CRT shaders, high audio buffer, and 2× textures are auto-enabled on supported cores.'
+  : '';
+
+showOverlay('HEX Web Emulator',
+  'Just open a ROM/ISO. Console detection and graphics tuning happen automatically.' +
+  ramGreeting, false);
+
+if (!DEVICE.webgl) {
+  setTimeout(function () {
+    showOverlay('WebGL unavailable',
+      'Your browser is falling back to CPU rendering. Enable hardware acceleration in browser settings for smooth PSP / N64 / NDS gameplay.', false);
+  }, 900);
+}
+
+/* ==========================================================================
+   20. PUBLIC API
+   ========================================================================== */
+window.RetroWeb = {
+  cores: CORES,
+  device: DEVICE,
+  settings: S,
+  applyPreset: applyManualPreset,
+  autoTune: function (weight) { return applyAutoProfile(weight || 'light'); },
+  setDeviceProfile: function (tier) {
+    deviceOverrideSelect.value = tier;
+    deviceOverrideSelect.dispatchEvent(new Event('change'));
+  },
+  load: function (coreId, src, name) { currentCoreId = coreId; startGame(coreId, src, name || 'game'); },
+  stop: function () { btnStop.click(); },
+  reset: function () { btnReset.click(); },
+  get emulator() { return window.EJS_emulator || null; },
+  get fps() { return currentFps; }
+};
+
+})();
+</script>
+</body>
+</html>
