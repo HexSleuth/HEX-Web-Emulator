@@ -1,5 +1,5 @@
 HEX Web Emulator
-HEX Web Emulator is a high-performance, retro web emulator optimized for devices with 8 GB RAM. It automatically probes your device capabilities, detects the console from your loaded ROM/ISO, and applies the best graphics, audio, and performance profile instantly.
+HEX Web Emulator is a high-performance, hex web emulator optimized for devices with 8 GB RAM. It automatically probes your device capabilities, detects the console from your loaded ROM/ISO, and applies the best graphics, audio, and performance profile instantly.
 Features
  * Auto-Detection & Tuning: Automatically detects console types from ROMs/ISOs and applies optimal core settings, thread counts, and rendering backends (WebGL preferred).
  * 8 GB RAM Optimization Profile: Automatically unlocks features like rewind capability, CRT shaders, high audio buffers, 2× texture scaling (for PSP/PS1), and up to 3× resolution scaling on light cores.
