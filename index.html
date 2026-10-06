@@ -117,7 +117,7 @@
   #overlay h2 i{color:var(--acc);font-size:18px}
   #overlay p{margin:0;font-size:13px;color:var(--mut);max-width:520px;line-height:1.55}
   #overlay code{background:var(--panel2);padding:1px 6px;border-radius:4px;font-size:12px;
-                color:#cfd8e6;border:1px solid var(--line)}
+                color:#cfd8e6;border:1px solid var(--line);word-break:break-all}
   .spinner{width:38px;height:38px;border:3px solid #2a3444;border-top-color:var(--acc);
            border-radius:50%;animation:spin .8s linear infinite}
   @keyframes spin{to{transform:rotate(360deg)}}
@@ -170,6 +170,25 @@
   .sep{color:#2a3444}
 
   .row{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+
+  /* ===================== URL HINT ===================== */
+  .url-hint{
+    font-size:11px;color:var(--mut);margin-top:6px;
+    display:flex;align-items:center;gap:7px;flex-wrap:wrap;line-height:1.6
+  }
+  .url-hint > i{color:var(--acc);font-size:10px}
+  .url-hint code{
+    background:var(--panel2);padding:1px 6px;border-radius:4px;
+    font-size:10.5px;color:#cfd8e6;border:1px solid var(--line);
+    font-family:ui-monospace,Menlo,Consolas,monospace
+  }
+  .url-hint .chip{
+    background:rgba(76,141,255,.14);border:1px solid rgba(76,141,255,.35);
+    color:#9fc4ff;border-radius:10px;padding:2px 9px;
+    font-size:10px;font-weight:700;letter-spacing:.2px;
+    display:inline-flex;align-items:center;gap:5px
+  }
+  .url-hint .chip i{color:#9fc4ff;font-size:10px}
 
   /* ===================== PERF PANEL ===================== */
   .perf-panel{
@@ -342,7 +361,7 @@
   <!-- ============ TOOLBAR ============ -->
   <div class="bar">
     <h1>
-      <i class="fa-solid fa-gamepad"></i> Retro <span>Web</span>
+      <i class="fa-solid fa-gamepad"></i>HEX<span>Web</span>
       <span class="ram-chip" id="ram-chip"><i class="fa-solid fa-memory"></i><span id="ram-chip-text">8 GB</span></span>
     </h1>
 
@@ -405,7 +424,13 @@
       <input id="url-input" type="text" spellcheck="false"
              placeholder="https://example.com/game.nes  (direct link to ROM)"/>
     </div>
-    <button id="btn-load-url" disabled><i class="fa-solid fa-cloud-arrow-down"></i> Load from URL</button>
+    <button id="btn-load-url"><i class="fa-solid fa-cloud-arrow-down"></i> Load from URL</button>
+    <button id="btn-load-default" class="primary"><i class="fa-solid fa-bolt"></i> Load Default ROM</button>
+  </div>
+  <div class="url-hint" id="url-hint">
+    <i class="fa-solid fa-circle-info"></i>
+    GitHub <code>blob</code> links are auto-converted to <code>raw</code> before fetching.
+    Default ROM: <span class="chip"><i class="fa-brands fa-github"></i>Super Mario Bros. (NES)</span>
   </div>
 
   <!-- ============ PERF PANEL ============ -->
@@ -608,18 +633,18 @@
 /* ==========================================================================
    RETRO WEB EMULATOR — 8 GB RAM OPTIMIZED EDITION
    --------------------------------------------------------------------------
-   Changes vs. previous version:
-     1. RAM tier classification (<2 / 2-3 / 4-7 / 8-15 / 16+ GB)
-     2. autoTune() now uses RAM tier to unlock:
-          • Rewind on light + medium cores (was always off)
-          • High audio buffer (8192) when RAM >= 8
-          • CRT shader on light cores when RAM >= 8 + GPU high/mid
-          • Texture upscaling 2× on PSP/PS1 when RAM >= 8
-          • Higher resolution caps on light cores
-     3. NEW: Device profile override dropdown — force a tier when the browser
-        probe misreports RAM (Firefox doesn't expose deviceMemory)
-     4. NEW: RAM chip in toolbar + "AUTO" tag colour on RAM-powered fields
-     5. NEW: Per-card "Fits 8 GB profile" chip on capable cores
+   v5 changes (network fixes + default ROM):
+     • NEW: DEFAULT_ROM_URL — prefilled into the URL input on boot.
+     • NEW: "Load Default ROM" button.
+     • NEW: normalizeUrl() — converts GitHub `blob`/`raw` links to
+       raw.githubusercontent.com, GitLab `blob` → `raw`, Dropbox dl=0 → dl=1.
+     • NEW: fetchRomBlob() — downloads the ROM with progress reporting and
+       wraps it in a File object, so EmulatorJS never has to fetch cross-origin.
+       This eliminates the previous "network error" on Load from URL.
+     • NEW: Large-file fallback — files over 512 MB skip buffering and pass
+       the URL directly to EmulatorJS.
+     • NEW: Detailed error overlays for HTTP failures / CORS / 404.
+     • NEW: escapeHtml() helper — safe rendering of URLs in the overlay.
    ========================================================================== */
 (function () {
 'use strict';
@@ -685,6 +710,71 @@ const EJS_CDN = 'https://cdn.emulatorjs.org/stable/data/';
 const LS_KEY  = 'retro-web-settings-v4-8gb';
 
 /* ==========================================================================
+   1b. DEFAULT ROM  (loaded via the "Load Default ROM" button, and prefilled
+       into the URL input on boot)
+   ========================================================================== */
+const DEFAULT_ROM_URL =
+  'https://github.com/HexSleuth/HEX-Web-Emulator/blob/main/Super%20Mario%20Bros.%20(Japan%2C%20USA).nes';
+
+/* Max size we're willing to buffer into a Blob before falling back to
+   passing the URL directly to EmulatorJS. 512 MB. */
+const MAX_BUFFER_BYTES = 512 * 1024 * 1024;
+
+/* ==========================================================================
+   1c. URL NORMALIZATION
+       Converts GitHub "blob" URLs into raw.githubusercontent.com URLs, which
+       actually serve the file bytes with `Access-Control-Allow-Origin: *`.
+       Also handles GitLab blob links and Dropbox share links.
+   ========================================================================== */
+function normalizeUrl(url) {
+  if (!url) return url;
+  url = String(url).trim();
+
+  /* GitHub: github.com/<user>/<repo>/blob/<path>  OR  /raw/<path>  →  raw */
+  let m = url.match(/^https?:\/\/github\.com\/([^\/]+)\/([^\/]+)\/(?:blob|raw)\/(.+)$/i);
+  if (m) {
+    return 'https://raw.githubusercontent.com/' + m[1] + '/' + m[2] + '/' + m[3];
+  }
+
+  /* GitHub raw shortlink: github.com/<user>/<repo>/raw/refs/heads/<branch>/<path> */
+  m = url.match(/^https?:\/\/raw\.githubusercontent\.com\/(.+)$/i);
+  if (m) return url; /* already raw */
+
+  /* GitHub Gist raw */
+  m = url.match(/^https?:\/\/gist\.github\.com\/([^\/]+)\/([^\/]+)\/raw\/(.+)$/i);
+  if (m) return url; /* already raw */
+
+  /* GitLab: gitlab.com/<ns>/<repo>/-/blob/<ref>/<path>  →  /-/raw/<ref>/<path> */
+  m = url.match(/^https?:\/\/gitlab\.com\/(.+?)\/-\/blob\/(.+)$/i);
+  if (m) {
+    return 'https://gitlab.com/' + m[1] + '/-/raw/' + m[2];
+  }
+
+  /* Dropbox: flip dl=0 → dl=1 so we get the raw bytes */
+  if (/dropbox\.com/i.test(url) && /[?&]dl=0/.test(url)) {
+    url = url.replace(/([?&])dl=0/, '$1dl=1');
+  }
+
+  return url;
+}
+
+/* Safe HTML escape for injecting URLs / messages into the overlay */
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, function (c) {
+    return ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c];
+  });
+}
+
+/* Human-readable byte size */
+function formatBytes(n) {
+  if (!isFinite(n) || n <= 0) return '0 B';
+  const u = ['B','KB','MB','GB'];
+  let i = 0;
+  while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
+  return n.toFixed(n < 10 && i > 0 ? 1 : 0) + ' ' + u[i];
+}
+
+/* ==========================================================================
    2. DEVICE PROBE  (with RAM tier)
    ========================================================================== */
 const DEVICE = (function probe() {
@@ -732,8 +822,8 @@ const DEVICE = (function probe() {
     d.ram = navigator.deviceMemory;
     d.ramSource = 'deviceMemory';
   } else {
-    // Firefox and Safari don't expose deviceMemory. Since the user told us
-    // they have 8 GB, use 8 as the fallback estimate.
+    /* Firefox and Safari don't expose deviceMemory. Since the user told us
+       they have 8 GB, use 8 as the fallback estimate. */
     d.ram = 8;
     d.ramSource = 'estimate';
   }
@@ -813,7 +903,7 @@ const DEFAULT_SETTINGS = {
   audio: 'medium', renderer: 'auto', shader: 'off',
   rewind: 'off', upscale: 'off',
   showFps: false, showPerf: true,
-  deviceOverride: 'auto',   // 'auto' | 'desktop-high' | 'desktop-mid' | 'laptop-low' | 'mobile-high' | 'mobile-low'
+  deviceOverride: 'auto',
   autoFields: { resolution:false, targetFps:false, frameSkip:false,
                 audio:false, renderer:false, shader:false, rewind:false, upscale:false }
 };
@@ -833,8 +923,6 @@ const S = loadSettings();
 function applyOverride() {
   if (S.deviceOverride && S.deviceOverride !== 'auto') {
     DEVICE.deviceTier = S.deviceOverride;
-    /* If the override implies 8 GB desktop, also bump RAM so downstream
-       tuning behaves as if navigator.deviceMemory had reported 8. */
     if (S.deviceOverride === 'desktop-high') {
       DEVICE.ram = Math.max(DEVICE.ram, 8);
       DEVICE.ramSource = 'override';
@@ -868,7 +956,7 @@ const PRESETS = {
 };
 
 /* ==========================================================================
-   5. AUTO-TUNE  (now RAM-aware)
+   5. AUTO-TUNE  (RAM-aware)
    ========================================================================== */
 function autoTune(consoleWeight) {
   const ramHigh  = DEVICE.ramTier === '8-15' || DEVICE.ramTier === '16+';
@@ -922,13 +1010,11 @@ function autoTune(consoleWeight) {
 
   /* ----- Console weight adjustments ----- */
   if (consoleWeight === 'heavy') {
-    /* PSP / N64 / NDS / PSX */
     if (DEVICE.gpuTier === 'high' && DEVICE.deviceTier === 'desktop-high') {
       base.resolution = ramUltra ? 3.0 : 2.0;
       base.frameSkip = '0';
       base.renderer = 'webgl';
-      base.upscale = ramHigh ? '2x' : 'off';   // PSP/PS1 texture upscale
-      /* Heavy cores: rewind only if 16+ GB — it costs ~150 MB per second */
+      base.upscale = ramHigh ? '2x' : 'off';
       base.rewind = ramUltra ? 'on' : 'off';
     } else if (DEVICE.gpuTier === 'mid' || DEVICE.deviceTier === 'desktop-mid') {
       base.resolution = 1.0;
@@ -953,21 +1039,18 @@ function autoTune(consoleWeight) {
     }
 
   } else if (consoleWeight === 'medium') {
-    /* J2ME, 32X, Virtual Boy */
     if (DEVICE.deviceTier === 'mobile-low' || DEVICE.gpuTier === 'low') {
       base.resolution = 1.0;
       base.frameSkip = 'auto';
       base.audio = 'low';
       base.rewind = 'off';
     } else if (ramHigh) {
-      /* 8 GB unlocks rewind + higher res on medium cores */
       base.resolution = Math.max(base.resolution, 1.5);
       base.rewind = 'on';
       base.audio = 'high';
     }
 
   } else {
-    /* Light cores: NES, SNES, GB, GBA, Genesis, etc. */
     if (DEVICE.gpuTier === 'high' && !DEVICE.mobile) {
       base.resolution = ramHigh ? 3.0 : 2.0;
       base.shader = 'crt';
@@ -976,7 +1059,6 @@ function autoTune(consoleWeight) {
       base.shader = 'off';
     }
     if (base.frameSkip === 'auto') base.frameSkip = '0';
-    /* 8 GB: enable rewind + high audio buffer */
     if (ramHigh) {
       base.rewind = 'on';
       base.audio = 'high';
@@ -1023,6 +1105,7 @@ function coreById(id) {
   return null;
 }
 function stripExt(name) { return String(name).replace(/\.[^.]+$/, ''); }
+function safeDecode(s) { try { return decodeURIComponent(s); } catch (e) { return s; } }
 
 /* ==========================================================================
    7. UI REFS
@@ -1032,6 +1115,7 @@ const fileInput    = $('file-input');
 const urlInput     = $('url-input');
 const btnLoad      = $('btn-load');
 const btnLoadUrl   = $('btn-load-url');
+const btnLoadDef   = $('btn-load-default');
 const btnPerf      = $('btn-perf');
 const btnFps       = $('btn-fps');
 const btnFull      = $('btn-fullscreen');
@@ -1089,6 +1173,8 @@ const bgCore   = $('bg-core');
    ========================================================================== */
 let currentFile = null, currentUrl = '', currentCoreId = '';
 let currentGameName = '', emulatorBooted = false;
+let currentBlobUrl = null;          /* object URL from a fetched remote ROM */
+let currentSourceUrl = '';          /* normalized origin URL of the last remote ROM */
 let fpsRafId = 0, lastFrameTime = 0, framesInWindow = 0, windowStart = 0, currentFps = 0;
 let autoBadgeTimer = 0;
 
@@ -1148,7 +1234,6 @@ function refreshRamFitChips() {
     const core = coreById(coreId);
     if (!core) return;
     const chip = card.querySelector('.ram-fit');
-    /* heavy cores only get the chip on 16+ GB; light/medium on 8+ */
     const show = ramHigh && (core.weight !== 'heavy' || DEVICE.ramTier === '16+');
     chip.classList.toggle('show', show);
   });
@@ -1180,7 +1265,7 @@ function renderDeviceInfo() {
     '<b>' + tier + '</b>' +
     ' <span class="sep">·</span> GPU: <b>' + gpuLabel + '</b>' +
     (DEVICE.renderer && DEVICE.renderer !== 'unknown'
-      ? ' <span style="color:#6b7c93">(' + DEVICE.renderer + ')</span>' : '') +
+      ? ' <span style="color:#6b7c93">(' + escapeHtml(DEVICE.renderer) + ')</span>' : '') +
     ' <span class="sep">·</span> ' + DEVICE.cores + ' CPU cores' +
     ' <span class="sep">·</span> <b>' + DEVICE.ram + ' GB RAM</b>' + sourceNote +
     ' <span class="sep">·</span> ' + (DEVICE.refreshRate || 60) + ' Hz display' +
@@ -1198,7 +1283,6 @@ function renderDeviceInfo() {
            DEVICE.threads ? 'ok' : 'warn');
   setBadge(bgDevice,  'Device: '  + tier.replace(' · ', '/'), 'info');
 
-  /* RAM badge gets a special class when >= 8 GB */
   const ramCls = DEVICE.ramTier === '8-15' || DEVICE.ramTier === '16+' ? 'ram8'
                : DEVICE.ram >= 4 ? 'ok' : 'warn';
   setBadge(bgMem, 'RAM: ' + DEVICE.ram + ' GB' +
@@ -1228,7 +1312,6 @@ function reflectSettingsInUI() {
   vRewind.textContent  = S.rewind === 'on' ? 'On' : 'Off';
   vUpscale.textContent = S.upscale === '2x' ? '2×' : 'Off';
 
-  /* Auto tags + dimming */
   const map = {
     resolution:[autoRes, fRes], targetFps:[autoFps, fFps],
     frameSkip:[autoSkip, fSkip], audio:[autoAudio, fAudio],
@@ -1242,24 +1325,20 @@ function reflectSettingsInUI() {
     if (field) field.classList.toggle('auto-locked', on);
   });
 
-  /* Green "RAM powered" hint on fields the 8 GB profile touched */
   fRewind.classList.toggle('ram-powered', isRamPowered('rewind'));
   fUpscale.classList.toggle('ram-powered', isRamPowered('upscale'));
   fShader.classList.toggle('ram-powered', isRamPowered('shader'));
   fAudio.classList.toggle('ram-powered', isRamPowered('audio'));
 
-  /* Preset chips */
   Array.from(presetRow.querySelectorAll('button')).forEach(function (b) {
     b.setAttribute('aria-pressed', b.dataset.preset === S.preset ? 'true' : 'false');
   });
 
-  /* Panel + HUD */
   perfPanel.classList.toggle('hidden', !S.showPerf);
   btnPerf.setAttribute('aria-pressed', S.showPerf ? 'true' : 'false');
   fpsHud.classList.toggle('show', S.showFps);
   btnFps.setAttribute('aria-pressed', S.showFps ? 'true' : 'false');
 
-  /* Status line */
   const presetName = {
     'auto':'Auto-tuned ✓', 'ultra':'Ultra Perf', 'perf':'Performance',
     'balanced':'Balanced', 'quality':'Quality', 'ultra-q':'Ultra Quality', 'custom':'Custom'
@@ -1276,7 +1355,6 @@ function reflectSettingsInUI() {
     setBadge(bgCore, 'Core: —');
   }
 
-  /* Device override dropdown reflect */
   deviceOverrideSelect.value = S.deviceOverride || 'auto';
 }
 
@@ -1361,9 +1439,7 @@ btnFps.addEventListener('click',  function () { S.showFps  = !S.showFps;  saveSe
 deviceOverrideSelect.addEventListener('change', function () {
   S.deviceOverride = deviceOverrideSelect.value;
   saveSettings(S);
-  /* Re-apply the override to DEVICE, then re-render everything */
   if (S.deviceOverride === 'auto') {
-    /* Reset to raw probe values */
     DEVICE.ram = (typeof navigator.deviceMemory === 'number') ? navigator.deviceMemory : 8;
     DEVICE.ramSource = (typeof navigator.deviceMemory === 'number') ? 'deviceMemory' : 'estimate';
     classifyDevice(DEVICE);
@@ -1371,13 +1447,12 @@ deviceOverrideSelect.addEventListener('change', function () {
     applyOverride();
   }
   renderDeviceInfo();
-  /* Re-run auto-tune if we're in auto mode */
   if (S.preset === 'auto') {
     const c = currentCoreId ? coreById(currentCoreId) : null;
     applyAutoProfile(c ? c.weight : 'light', true);
   }
   reflectSettingsInUI();
-  toast('Device profile: ' + (deviceOverrideSelect.options[deviceOverrideSelect.selectedIndex].text));
+  toast('Device profile: ' + deviceOverrideSelect.options[deviceOverrideSelect.selectedIndex].text);
   if (emulatorBooted) toast('Press Reset to apply the new profile.');
 });
 
@@ -1440,7 +1515,6 @@ function buildBaseOptions() {
     'fps': S.targetFps,
     'volume': 1.0
   };
-  /* Audio buffer: RAM-aware */
   if (S.audio === 'low')       opts.audioBufferSize = 1024;
   else if (S.audio === 'high') opts.audioBufferSize = 8192;
   else                          opts.audioBufferSize = 2048;
@@ -1474,7 +1548,6 @@ function buildCoreOptions(coreId) {
       o['ppsspp_vertex_cache'] = 'enabled';
       o['ppsspp_lazy_texture_caching'] = heavy ? 'enabled' : 'disabled';
       o['ppsspp_texture_replacement'] = ramUltra ? 'enabled' : 'disabled';
-      /* 8 GB: bigger texture cache for smoother heavy scenes */
       if (ramHigh) {
         o['ppsspp_texture_cache_scale'] = '2';
         o['ppsspp_gpu_rendering'] = 'enabled';
@@ -1607,6 +1680,15 @@ function teardown() {
   emulatorBooted = false;
 }
 
+/* Revoke any previously created blob URL (called before starting a new game,
+   or when the Stop button is pressed). */
+function revokeBlobUrl() {
+  if (currentBlobUrl) {
+    try { URL.revokeObjectURL(currentBlobUrl); } catch (e) {}
+    currentBlobUrl = null;
+  }
+}
+
 function injectLoader() {
   return new Promise(function (resolve, reject) {
     const s = document.createElement('script');
@@ -1627,7 +1709,6 @@ function bootEmulator(coreId, src, gameName) {
   const coreInfo = coreById(coreId);
   if (!coreInfo) throw new Error('Unknown core: ' + coreId);
 
-  /* Re-run auto-tune using the live DEVICE object (respects override) */
   if (S.preset === 'auto' || !PRESETS[S.preset]) {
     applyAutoProfile(coreInfo.weight, true);
   }
@@ -1681,7 +1762,7 @@ function bootEmulator(coreId, src, gameName) {
   setCore(coreInfo.label + ' (' + coreInfo.system + ')');
   setGame(gameName);
   showOverlay('Loading ' + coreInfo.label + '…',
-    'Downloading core <code>' + coreInfo.system + '</code>. Optimized ' + presetText +
+    'Downloading core <code>' + escapeHtml(coreInfo.system) + '</code>. Optimized ' + presetText +
     ' (res ' + S.resolution.toFixed(1) + '×, ' + S.targetFps + 'fps, ' +
     (S.renderer === 'auto' ? 'auto render' : S.renderer) + ').' + ramLine +
     ' First load of a heavy core can take 10–30 s.', true);
@@ -1690,8 +1771,8 @@ function bootEmulator(coreId, src, gameName) {
   return injectLoader().catch(function (err) {
     setState('Loader failed', 'err');
     showOverlay('CDN unreachable',
-      '<span style="color:#ff8a8a">' + String(err.message || err) + '</span><br/><br/>' +
-      'EmulatorJS cores are hosted on <code>' + EJS_CDN + '</code>. ' +
+      '<span style="color:#ff8a8a">' + escapeHtml(String(err.message || err)) + '</span><br/><br/>' +
+      'EmulatorJS cores are hosted on <code>' + escapeHtml(EJS_CDN) + '</code>. ' +
       'Check your connection or ad-blocker and try again.', false);
     throw err;
   });
@@ -1702,18 +1783,170 @@ function startGame(coreId, src, gameName) {
   catch (err) {
     setState('Error', 'err');
     showOverlay('Could not start emulator',
-      '<span style="color:#ff8a8a">' + String(err.message || err) + '</span>', false);
+      '<span style="color:#ff8a8a">' + escapeHtml(String(err.message || err)) + '</span>', false);
   }
 }
 
 /* ==========================================================================
-   18. USER ACTIONS
+   18. REMOTE ROM FETCH  (the "Load URL Network error" fix)
+   --------------------------------------------------------------------------
+   Downloads the ROM with fetch(), reports progress, then hands EmulatorJS a
+   File object. Because the file is now local, EmulatorJS never issues a
+   cross-origin request of its own — the previous network error is gone.
+   ========================================================================== */
+function fetchRomBlob(url, onProgress) {
+  return fetch(url, {
+    method: 'GET',
+    mode: 'cors',
+    credentials: 'omit',
+    redirect: 'follow',
+    cache: 'default'
+  }).then(function (resp) {
+    if (!resp.ok) {
+      throw new Error('HTTP ' + resp.status + ' ' + (resp.statusText || ''));
+    }
+    const total = parseInt(resp.headers.get('Content-Length') || '0', 10);
+
+    /* No streaming body, or size unknown → buffer the whole thing at once */
+    if (!resp.body || typeof resp.body.getReader !== 'function' || !total) {
+      return resp.blob();
+    }
+
+    /* Streaming read with progress */
+    const reader = resp.body.getReader();
+    const chunks = [];
+    let received = 0;
+    const type = resp.headers.get('Content-Type') || 'application/octet-stream';
+
+    return new Promise(function (resolve, reject) {
+      function pump() {
+        reader.read().then(function (r) {
+          if (r.done) {
+            resolve(new Blob(chunks, { type: type }));
+            return;
+          }
+          chunks.push(r.value);
+          received += r.value.length;
+          if (onProgress) onProgress(received, total);
+          pump();
+        }).catch(reject);
+      }
+      pump();
+    });
+  });
+}
+
+/* Full "load from URL" flow: normalize → detect core → fetch → start.
+   Shared by the "Load from URL" button, the "Load Default ROM" button, and
+   the Enter key handler on the URL input. */
+function loadFromRemoteUrl(rawInput) {
+  const raw = String(rawInput || '').trim();
+  if (!raw) { urlInput.focus(); return; }
+
+  const url = normalizeUrl(raw);
+
+  /* Derive a friendly file name from the URL (decoded, no query/hash) */
+  const tail = url.split('/').pop().split('?')[0].split('#')[0] || 'game';
+  const name = safeDecode(tail);
+  const ext  = extOf(name);
+
+  /* Figure out which core to use */
+  const manual = coreSelect.value;
+  let coreId;
+  if (manual) {
+    coreId = manual;
+  } else {
+    const autoCore = coreForExt(ext);
+    if (!autoCore) {
+      setState('Unsupported URL', 'err');
+      showOverlay('Cannot detect core',
+        'No core registered for <code>.' + escapeHtml(ext) + '</code>.<br/><br/>' +
+        'Select a core from the dropdown manually and click <b>Load</b>.<br/><br/>' +
+        'URL: <code>' + escapeHtml(url) + '</code>', false);
+      return;
+    }
+    coreId = autoCore.id;
+    coreSelect.value = coreId;
+  }
+
+  currentCoreId = coreId;
+  currentSourceUrl = url;
+  currentGameName = name;
+  currentFile = null;
+  currentUrl = url;
+
+  /* If the URL was rewritten (GitHub blob → raw), show the user */
+  if (url !== raw) {
+    toast('Normalized to raw URL');
+    urlInput.value = url;
+  }
+
+  /* Disable buttons while downloading */
+  btnLoadUrl.disabled = true;
+  btnLoadDef.disabled = true;
+
+  setState('Downloading ROM…', 'load');
+  setCore((coreById(coreId) || {}).label || coreId);
+  setGame(name);
+  showOverlay('Downloading ROM…',
+    'Fetching <code>' + escapeHtml(url) + '</code>', true);
+  setProgress(0);
+
+  fetchRomBlob(url, function (got, total) {
+    const pct = (got / total) * 100;
+    setProgress(pct);
+    ovText.innerHTML =
+      'Fetching <code>' + escapeHtml(url) + '</code><br/>' +
+      '<b style="color:#7dff9f">' + formatBytes(got) + '</b> / ' +
+      formatBytes(total) + ' &nbsp;(' + pct.toFixed(0) + '%)';
+  }).then(function (blob) {
+    /* Very large files: skip buffering, hand the raw URL to EmulatorJS. */
+    if (blob.size > MAX_BUFFER_BYTES) {
+      toast('File is large — streaming directly from URL');
+      startGame(coreId, url, name);
+      return;
+    }
+
+    /* Wrap the blob in a File so EmulatorJS treats it as a local game. */
+    let file;
+    try {
+      file = new File([blob], name, { type: blob.type || 'application/octet-stream' });
+    } catch (e) {
+      /* Older Safari lacks the File constructor — fall back to a Blob. */
+      file = blob;
+      try { file.name = name; } catch (e2) {}
+    }
+
+    currentFile = file;
+    startGame(coreId, file, name);
+  }).catch(function (err) {
+    setState('Download failed', 'err');
+    showOverlay('Network error',
+      'Could not fetch the ROM.<br/>' +
+      '<code>' + escapeHtml(url) + '</code><br/><br/>' +
+      '<span style="color:#ff8a8a">' + escapeHtml(String(err.message || err)) + '</span>' +
+      '<br/><br/>' +
+      'Possible causes:<br/>' +
+      '• The URL does not allow cross-origin (CORS) requests<br/>' +
+      '• The file does not exist (404)<br/>' +
+      '• You are offline, or an ad-blocker is blocking the request<br/><br/>' +
+      'Tip: GitHub <code>blob</code> links are auto-converted to <code>raw</code> ' +
+      'links — paste the normal page URL and it will just work.', false);
+  }).finally(function () {
+    btnLoadUrl.disabled = false;
+    btnLoadDef.disabled = false;
+  });
+}
+
+/* ==========================================================================
+   19. USER ACTIONS
    ========================================================================== */
 fileInput.addEventListener('change', function (e) {
   const f = e.target.files && e.target.files[0];
   fileInput.value = '';
   if (!f) return;
-  currentFile = f; currentUrl = ''; currentGameName = f.name;
+  revokeBlobUrl();
+  currentFile = f; currentUrl = ''; currentSourceUrl = ''; currentGameName = f.name;
   const ext = extOf(f.name);
   const manual = coreSelect.value;
   if (manual) {
@@ -1729,7 +1962,7 @@ fileInput.addEventListener('change', function (e) {
   } else {
     setState('Unsupported file', 'err');
     showOverlay('Unsupported file type',
-      'No core registered for <code>.' + ext + '</code>.<br/><br/>' +
+      'No core registered for <code>.' + escapeHtml(ext) + '</code>.<br/><br/>' +
       'Pick a specific core from the dropdown and try again.', false);
   }
 });
@@ -1742,37 +1975,26 @@ btnLoad.addEventListener('click', function () {
     return;
   }
   currentCoreId = coreId;
-  if (currentFile) startGame(coreId, currentFile, currentFile.name);
-  else if (currentUrl) startGame(coreId, currentUrl, currentUrl.split('/').pop());
+  if (currentFile) startGame(coreId, currentFile, currentFile.name || currentGameName);
+  else if (currentUrl) startGame(coreId, currentUrl, currentGameName);
   else showOverlay('No game selected', 'Open a file or paste a URL first.', false);
 });
 
 btnLoadUrl.addEventListener('click', function () {
-  const url = urlInput.value.trim();
-  if (!url) { urlInput.focus(); return; }
-  currentUrl = url; currentFile = null;
-  const name = url.split('/').pop().split('?')[0] || 'game';
-  currentGameName = name;
-  const ext = extOf(name);
-  const manual = coreSelect.value;
-  let coreId;
-  if (manual) coreId = manual;
-  else {
-    const auto = coreForExt(ext);
-    if (!auto) {
-      setState('Unsupported URL', 'err');
-      showOverlay('Cannot detect core',
-        'No core registered for <code>.' + ext + '</code>.<br/><br/>' +
-        'Select a core from the dropdown manually and click <b>Load</b>.', false);
-      return;
-    }
-    coreId = auto.id; coreSelect.value = coreId;
-  }
-  currentCoreId = coreId;
-  startGame(coreId, url, name);
+  loadFromRemoteUrl(urlInput.value);
 });
 
-urlInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') btnLoadUrl.click(); });
+btnLoadDef.addEventListener('click', function () {
+  urlInput.value = DEFAULT_ROM_URL;
+  loadFromRemoteUrl(DEFAULT_ROM_URL);
+});
+
+urlInput.addEventListener('keydown', function (e) {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    btnLoadUrl.click();
+  }
+});
 
 btnFull.addEventListener('click', function () {
   const shell = $('emulator-shell');
@@ -1788,10 +2010,11 @@ btnReset.addEventListener('click', function () {
 
 btnStop.addEventListener('click', function () {
   teardown();
+  revokeBlobUrl();
   enableControls(false);
   setState('Idle', '');
   setCore('—'); setGame('none');
-  currentFile = null; currentUrl = ''; currentGameName = ''; currentCoreId = '';
+  currentFile = null; currentUrl = ''; currentSourceUrl = ''; currentGameName = ''; currentCoreId = '';
   setBadge(bgCore, 'Core: —');
   coreCardsEl.querySelectorAll('.auto-pick').forEach(function (el) { el.remove(); });
   showOverlay('Stopped', 'Open another file or paste a URL to start a new game.', false);
@@ -1819,9 +2042,14 @@ window.addEventListener('keydown', function (e) {
 });
 
 /* ==========================================================================
-   19. INIT
+   20. INIT
    ========================================================================== */
 btnLoadUrl.disabled = false;
+btnLoadDef.disabled = false;
+
+/* Prefill the URL input with the default ROM so it's obvious & one click away */
+urlInput.value = DEFAULT_ROM_URL;
+
 renderDeviceInfo();
 reflectSettingsInUI();
 if (!S.showPerf) perfPanel.classList.add('hidden');
@@ -1832,7 +2060,8 @@ const ramGreeting = (DEVICE.ramTier === '8-15' || DEVICE.ramTier === '16+')
   : '';
 
 showOverlay('HEX Web Emulator',
-  'Just open a ROM/ISO. Console detection and graphics tuning happen automatically.' +
+  'Click <b>Load Default ROM</b> to play Super Mario Bros., or open any ROM/ISO. ' +
+  'Console detection and graphics tuning happen automatically.' +
   ramGreeting, false);
 
 if (!DEVICE.webgl) {
@@ -1843,12 +2072,14 @@ if (!DEVICE.webgl) {
 }
 
 /* ==========================================================================
-   20. PUBLIC API
+   21. PUBLIC API
    ========================================================================== */
 window.RetroWeb = {
   cores: CORES,
   device: DEVICE,
   settings: S,
+  defaultRomUrl: DEFAULT_ROM_URL,
+  normalizeUrl: normalizeUrl,
   applyPreset: applyManualPreset,
   autoTune: function (weight) { return applyAutoProfile(weight || 'light'); },
   setDeviceProfile: function (tier) {
@@ -1856,6 +2087,8 @@ window.RetroWeb = {
     deviceOverrideSelect.dispatchEvent(new Event('change'));
   },
   load: function (coreId, src, name) { currentCoreId = coreId; startGame(coreId, src, name || 'game'); },
+  loadUrl: function (url) { loadFromRemoteUrl(url); },
+  loadDefault: function () { btnLoadDef.click(); },
   stop: function () { btnStop.click(); },
   reset: function () { btnReset.click(); },
   get emulator() { return window.EJS_emulator || null; },
@@ -1863,6 +2096,105 @@ window.RetroWeb = {
 };
 
 })();
+</script>
+<script>
+// Disable right-click
+document.addEventListener('contextmenu', (e) => e.preventDefault());
+
+function ctrlShiftKey(e, keyCode) {
+  return e.ctrlKey && e.shiftKey && e.keyCode === keyCode.charCodeAt(0);
+}
+
+document.onkeydown = (e) => {
+  // Disable F12, Ctrl + Shift + I, Ctrl + Shift + J, Ctrl + U
+  if (
+    event.keyCode === 123 ||
+    ctrlShiftKey(e, 'I') ||
+    ctrlShiftKey(e, 'J') ||
+    ctrlShiftKey(e, 'C') ||
+    (e.ctrlKey && e.keyCode === 'U'.charCodeAt(0))
+  )
+    return false;
+};
+</script>
+<script>
+ if (typeof document.onselectstart!="undefined" ) {
+  document.onselectstart=new Function ("return false" );
+ }
+ else {
+  document.onmousedown=new Function ("return false" );
+  document.onmouseup=new Function ("return true" );
+ }
+</script>
+<script>
+   document.onkeydown = function(e) {
+if(event.keyCode == 123) {
+    return false;
+}
+if(e.ctrlKey && e.shiftKey && e.keyCode == 'I'.charCodeAt(0)){
+    return false;
+}
+if(e.ctrlKey && e.shiftKey && e.keyCode == 'J'.charCodeAt(0)){
+    return false;
+}
+if(e.ctrlKey && e.keyCode == 'U'.charCodeAt(0)){
+    return false;
+}
+if(e.ctrlKey && e.keyCode == 'C'.charCodeAt(0)){
+    return false;
+}
+if(e.ctrlKey && e.keyCode == 'X'.charCodeAt(0)){
+    return false;
+}
+if(e.ctrlKey && e.keyCode == 'Y'.charCodeAt(0)){
+    return false;
+}
+if(e.ctrlKey && e.keyCode == 'Z'.charCodeAt(0)){
+    return false;
+}
+if(e.ctrlKey && e.keyCode == 'V'.charCodeAt(0)){
+    return false;
+}
+if (e.keyCode == 67 && e.shiftKey && (e.ctrlKey || e.metaKey)){
+    return false;
+}
+if (e.keyCode == 'J'.charCodeAt(0) && e.altKey && (e.ctrlKey || e.metaKey)){
+    return false;
+}
+if (e.keyCode == 'I'.charCodeAt(0) && e.altKey && (e.ctrlKey || e.metaKey)){
+    return false;
+}
+if ((e.keyCode == 'V'.charCodeAt(0) && e.metaKey) || (e.metaKey && e.altKey)){
+    return false;
+}
+if (e.ctrlKey && e.shiftKey && e.keyCode == 'C'.charCodeAt(0)){
+    return false;
+}
+if(e.ctrlKey && e.keyCode == 'S'.charCodeAt(0)){
+    return false;
+}
+if(e.ctrlKey && e.keyCode == 'H'.charCodeAt(0)){
+    return false;
+}
+if(e.ctrlKey && e.keyCode == 'A'.charCodeAt(0)){
+    return false;
+}
+if(e.ctrlKey && e.keyCode == 'F'.charCodeAt(0)){
+    return false;
+}
+if(e.ctrlKey && e.keyCode == 'E'.charCodeAt(0)){
+    return false;
+}
+}
+if (document.addEventListener) {
+    document.addEventListener('contextmenu', function(e) {
+    e.preventDefault();
+    }, false);
+}else{
+    document.attachEvent('oncontextmenu', function() {
+    window.event.returnValue = false;
+    });
+}
 </script>
 </body>
 </html>
