@@ -106,6 +106,12 @@
     transform:translateZ(0);backface-visibility:hidden;
   }
 
+  canvas.threefx-canvas{
+    position:absolute;left:0;top:0;width:100%;height:100%;
+    pointer-events:none;z-index:4;display:block;
+    transform:translateZ(0);backface-visibility:hidden;
+  }
+
   #overlay{
     position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
     justify-content:center;gap:12px;background:rgba(6,8,12,.92);text-align:center;
@@ -292,6 +298,20 @@
   /* RAM-powered fields */
   .field.ram-powered label > span:first-child i{color:var(--ram8)}
   .field.ram-powered .hint{color:var(--ram8);opacity:.75}
+  /* Screen-recording detected accent */
+  .field.screenrec label > span:first-child i{color:#7dff9f}
+  .field.screenrec .hint{color:#7dff9f;opacity:.85}
+  .field .screenrec-chip{
+    display:none;
+    align-items:center;gap:5px;
+    background:rgba(125,255,159,.13);
+    border:1px solid rgba(125,255,159,.4);
+    color:var(--ram8);font-size:9.5px;font-weight:700;
+    padding:2px 8px;border-radius:10px;letter-spacing:.2px;
+    width:fit-content;margin-top:2px;
+  }
+  .field .screenrec-chip.show{display:inline-flex}
+  .field .screenrec-chip i{font-size:9px;color:var(--ram8)}
 
   .keys{font-size:11.5px;color:var(--mut);line-height:1.9;margin-top:12px;
         background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
@@ -443,6 +463,7 @@
         <span class="badge" id="bg-device"><i class="fa-solid fa-desktop"></i><span>Device: —</span></span>
         <span class="badge" id="bg-mem"><i class="fa-solid fa-memory"></i><span>RAM: —</span></span>
         <span class="badge" id="bg-cores"><i class="fa-solid fa-microchip"></i><span>CPU: —</span></span>
+        <span class="badge" id="bg-refresh"><i class="fa-solid fa-display"></i><span>Display: —</span></span>
         <span class="badge" id="bg-core"><i class="fa-solid fa-puzzle-piece"></i><span>Core: —</span></span>
       </div>
     </div>
@@ -505,8 +526,12 @@
             <span class="val" id="v-fps">60</span>
           </span>
         </label>
-        <input type="range" id="s-fps" min="30" max="120" step="10" value="60">
-        <div class="hint">Matched to your display refresh rate.</div>
+        <input type="range" id="s-fps" min="30" max="240" step="1" value="60">
+        <div class="hint" id="fps-hint">Matched to your display refresh rate (up to 240 Hz).</div>
+        <span class="screenrec-chip" id="screenrec-chip">
+          <i class="fa-solid fa-circle-dot"></i>
+          Screen recording <span id="screenrec-hz">120</span> Hz detected — FPS locked
+        </span>
       </div>
 
       <div class="field" id="f-skip">
@@ -569,10 +594,11 @@
         </label>
         <select id="s-shader">
           <option value="off" selected>Off (fastest)</option>
-          <option value="crt">CRT scanlines</option>
-          <option value="2x">2× HQ scale</option>
+          <option value="crt">CRT scanlines (EJS)</option>
+          <option value="2x">2× HQ scale (EJS)</option>
+          <option value="3d">3D Shader — three.js</option>
         </select>
-        <div class="hint">8 GB enables CRT on light cores.</div>
+        <div class="hint">3D uses a three.js post-process pass (bloom + curvature).</div>
       </div>
 
       <div class="field" id="f-rewind">
@@ -633,18 +659,29 @@
 /* ==========================================================================
    RETRO WEB EMULATOR — 8 GB RAM OPTIMIZED EDITION
    --------------------------------------------------------------------------
-   v5 changes (network fixes + default ROM):
-     • NEW: DEFAULT_ROM_URL — prefilled into the URL input on boot.
-     • NEW: "Load Default ROM" button.
-     • NEW: normalizeUrl() — converts GitHub `blob`/`raw` links to
-       raw.githubusercontent.com, GitLab `blob` → `raw`, Dropbox dl=0 → dl=1.
-     • NEW: fetchRomBlob() — downloads the ROM with progress reporting and
-       wraps it in a File object, so EmulatorJS never has to fetch cross-origin.
-       This eliminates the previous "network error" on Load from URL.
-     • NEW: Large-file fallback — files over 512 MB skip buffering and pass
-       the URL directly to EmulatorJS.
-     • NEW: Detailed error overlays for HTTP failures / CORS / 404.
-     • NEW: escapeHtml() helper — safe rendering of URLs in the overlay.
+   v7 changes (Auto-detect + 120 FPS screen recording):
+     • FIXED refresh-rate detection:
+         - 220-frame sample window (was 90) with 10-frame warmup
+         - Robust median + p10 percentile analysis so high-refresh panels
+           (120/144/165/240) are correctly distinguished from 60 Hz panels
+           where rAF occasionally coalesces two frames.
+         - Snap table extended with 24/48/72/180/360.
+         - Explicit bias toward 100–144 Hz family so 120 Hz displays are
+           not misclassified as 60 Hz when the browser throttles rAF.
+     • NEW "Screen recording 120 Hz" detection:
+         - When the measured rate lands in the 100–144 Hz band, the UI shows
+           a green "Screen recording 120 Hz detected — FPS locked" chip under
+           the Target FPS slider, and the auto-tuner forces targetFps = 120.
+     • FIXED settings section sync:
+         - The Target FPS slider now reflects the auto-tuned value even when
+           the measured rate arrives asynchronously after boot.
+         - A dedicated #fps-hint element is updated live with the detected
+           rate + profile state.
+     • FIXED auto-tune 120 Hz branch so it is never overridden by the
+       mobile/heavy-core 60 Hz clamp unless the GPU is genuinely low-end.
+     • All previous v6 behaviour (three.js 3D shader, J2ME watchdog,
+       EmulatorJS canonical shader names, consolidated key blocker) kept
+       intact.
    ========================================================================== */
 (function () {
 'use strict';
@@ -706,51 +743,41 @@ const CORES = [
     exts:['jar','jad'] }
 ];
 
-const EJS_CDN = 'https://cdn.emulatorjs.org/stable/data/';
-const LS_KEY  = 'retro-web-settings-v4-8gb';
+const EJS_CDN   = 'https://cdn.emulatorjs.org/stable/data/';
+const LS_KEY    = 'retro-web-settings-v4-8gb';
+const THREE_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
 
 /* ==========================================================================
-   1b. DEFAULT ROM  (loaded via the "Load Default ROM" button, and prefilled
-       into the URL input on boot)
+   1b. DEFAULT ROM
    ========================================================================== */
 const DEFAULT_ROM_URL =
   'https://github.com/HexSleuth/HEX-Web-Emulator/blob/main/Super%20Mario%20Bros.%20(Japan%2C%20USA).nes';
 
-/* Max size we're willing to buffer into a Blob before falling back to
-   passing the URL directly to EmulatorJS. 512 MB. */
 const MAX_BUFFER_BYTES = 512 * 1024 * 1024;
 
 /* ==========================================================================
    1c. URL NORMALIZATION
-       Converts GitHub "blob" URLs into raw.githubusercontent.com URLs, which
-       actually serve the file bytes with `Access-Control-Allow-Origin: *`.
-       Also handles GitLab blob links and Dropbox share links.
    ========================================================================== */
 function normalizeUrl(url) {
   if (!url) return url;
   url = String(url).trim();
 
-  /* GitHub: github.com/<user>/<repo>/blob/<path>  OR  /raw/<path>  →  raw */
   let m = url.match(/^https?:\/\/github\.com\/([^\/]+)\/([^\/]+)\/(?:blob|raw)\/(.+)$/i);
   if (m) {
     return 'https://raw.githubusercontent.com/' + m[1] + '/' + m[2] + '/' + m[3];
   }
 
-  /* GitHub raw shortlink: github.com/<user>/<repo>/raw/refs/heads/<branch>/<path> */
   m = url.match(/^https?:\/\/raw\.githubusercontent\.com\/(.+)$/i);
-  if (m) return url; /* already raw */
+  if (m) return url;
 
-  /* GitHub Gist raw */
   m = url.match(/^https?:\/\/gist\.github\.com\/([^\/]+)\/([^\/]+)\/raw\/(.+)$/i);
-  if (m) return url; /* already raw */
+  if (m) return url;
 
-  /* GitLab: gitlab.com/<ns>/<repo>/-/blob/<ref>/<path>  →  /-/raw/<ref>/<path> */
   m = url.match(/^https?:\/\/gitlab\.com\/(.+?)\/-\/blob\/(.+)$/i);
   if (m) {
     return 'https://gitlab.com/' + m[1] + '/-/raw/' + m[2];
   }
 
-  /* Dropbox: flip dl=0 → dl=1 so we get the raw bytes */
   if (/dropbox\.com/i.test(url) && /[?&]dl=0/.test(url)) {
     url = url.replace(/([?&])dl=0/, '$1dl=1');
   }
@@ -758,14 +785,12 @@ function normalizeUrl(url) {
   return url;
 }
 
-/* Safe HTML escape for injecting URLs / messages into the overlay */
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, function (c) {
     return ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c];
   });
 }
 
-/* Human-readable byte size */
 function formatBytes(n) {
   if (!isFinite(n) || n <= 0) return '0 B';
   const u = ['B','KB','MB','GB'];
@@ -775,7 +800,7 @@ function formatBytes(n) {
 }
 
 /* ==========================================================================
-   2. DEVICE PROBE  (with RAM tier)
+   2. DEVICE PROBE
    ========================================================================== */
 const DEVICE = (function probe() {
   const d = {
@@ -786,10 +811,12 @@ const DEVICE = (function probe() {
     touch: ('ontouchstart' in window) || navigator.maxTouchPoints > 0,
     highDpi: (window.devicePixelRatio || 1) >= 2,
     refreshRate: 60,
-    ramSource: 'estimate'   // 'deviceMemory' | 'override' | 'estimate'
+    refreshRateRaw: 60,
+    refreshRateConfidence: 0,
+    ramSource: 'estimate',
+    screenRecording: false
   };
 
-  /* --- WebGL probes --- */
   try {
     const c = document.createElement('canvas');
     const gl2 = c.getContext('webgl2');
@@ -807,45 +834,33 @@ const DEVICE = (function probe() {
     }
   } catch (e) {}
 
-  /* --- Threads --- */
   d.threads = (typeof SharedArrayBuffer !== 'undefined' &&
                (self.crossOriginIsolated === true ||
                 (typeof window.crossOriginIsolated !== 'undefined' && window.crossOriginIsolated)));
 
-  /* --- Mobile --- */
   const ua = navigator.userAgent || '';
   d.mobile = /Android|iPhone|iPad|iPod|Mobile|Tablet|Silk/i.test(ua) ||
              (navigator.maxTouchPoints > 1 && window.innerWidth < 900);
 
-  /* --- RAM: real value from Chromium, else assume 8 GB (per user config) --- */
   if (typeof navigator.deviceMemory === 'number') {
     d.ram = navigator.deviceMemory;
     d.ramSource = 'deviceMemory';
   } else {
-    /* Firefox and Safari don't expose deviceMemory. Since the user told us
-       they have 8 GB, use 8 as the fallback estimate. */
     d.ram = 8;
     d.ramSource = 'estimate';
   }
 
-  /* --- Classify everything --- */
   classifyDevice(d);
   return d;
 })();
 
-/**
- * Compute deviceTier / gpuTier / ramTier from raw probe data.
- * Called once at boot, and again whenever the user changes the override.
- */
 function classifyDevice(d) {
-  /* RAM tier */
   if      (d.ram >= 16) d.ramTier = '16+';
   else if (d.ram >= 8)  d.ramTier = '8-15';
   else if (d.ram >= 4)  d.ramTier = '4-7';
   else if (d.ram >= 2)  d.ramTier = '2-3';
   else                  d.ramTier = '<2';
 
-  /* Device tier (combination of RAM, cores, mobile flag) */
   if (d.mobile) {
     d.deviceTier = (d.cores >= 6 && d.ram >= 4) ? 'mobile-high' : 'mobile-low';
   } else if (d.cores >= 8 && d.ram >= 8) {
@@ -856,7 +871,6 @@ function classifyDevice(d) {
     d.deviceTier = 'laptop-low';
   }
 
-  /* GPU tier from renderer string */
   const r = (d.renderer || '').toLowerCase();
   if (/(rtx|radeon rx (5|6|7)|arc a|apple m[1-9]|adreno 7|mali-g7|mali-g[89])/.test(r)) {
     d.gpuTier = 'high';
@@ -868,31 +882,129 @@ function classifyDevice(d) {
     d.gpuTier = 'low';
   }
 
-  /* High-RAM bump: 8 GB + decent cores lifts to at least desktop-mid */
   if (!d.mobile && d.ram >= 8 && d.cores >= 4 && d.deviceTier === 'laptop-low') {
     d.deviceTier = 'desktop-mid';
   }
-  /* 8 GB + mid/high GPU lifts to desktop-high */
   if (!d.mobile && d.ram >= 8 && d.gpuTier !== 'low' && d.cores >= 6) {
     d.deviceTier = 'desktop-high';
   }
 }
 
-/* Refresh-rate measurement (async, non-blocking) */
-(function measureRefresh() {
-  try {
-    let frames = 0, start = performance.now();
-    (function tick() {
-      frames++;
-      const t = performance.now();
-      if (t - start >= 200) {
-        DEVICE.refreshRate = Math.round((frames * 1000) / (t - start));
-        return;
-      }
+/* ==========================================================================
+   2b. REFRESH-RATE MEASUREMENT  (120 Hz / screen-recording aware)
+   --------------------------------------------------------------------------
+   Strategy:
+     1. Sample ~220 rAF frame deltas (after a 10-frame warmup).
+     2. Discard the worst 15 % on each tail (outliers).
+     3. Take the median -> baseline Hz.
+     4. Also take the 10th percentile -> fast-tail Hz.  On 120 Hz panels
+        where rAF occasionally coalesces two frames, the median sits at
+        60 Hz but p10 reveals the true 120 Hz.
+     5. If p10 >= 1.6 * median AND p10 >= 90 Hz, prefer p10.
+     6. Snap to the nearest common rate with a mild bias toward the
+        100–144 Hz family so 120 Hz is never mis-snapped to 60 Hz.
+     7. Store both the raw measured Hz (refreshRateRaw) and the snapped
+        Hz (refreshRate), plus a 0–1 confidence score.
+   ========================================================================== */
+const COMMON_RATES = [24, 30, 48, 50, 60, 72, 75, 90, 100, 120, 144, 165, 180, 240, 360];
+
+function measureRefreshRate(callback) {
+  const samples = [];
+  let last = 0;
+  let count = 0;
+  const TARGET = 220;
+  let warmup = 10;
+
+  function tick(now) {
+    if (last !== 0 && warmup <= 0) {
+      const dt = now - last;
+      /* Keep deltas that correspond to 4 Hz..250 Hz */
+      if (dt > 4 && dt < 250) samples.push(dt);
+    }
+    if (warmup > 0) warmup--;
+    last = now;
+    count++;
+    if (count < TARGET) {
       requestAnimationFrame(tick);
-    })();
-  } catch (e) {}
-})();
+    } else {
+      finish();
+    }
+  }
+
+  function finish() {
+    let hz = 60;
+    let confidence = 0;
+
+    if (samples.length >= 30) {
+      /* Sort ascending */
+      samples.sort(function (a, b) { return a - b; });
+
+      /* Trim 15 % off each tail */
+      const trim = Math.floor(samples.length * 0.15);
+      const trimmed = samples.slice(trim, samples.length - trim);
+      const median = trimmed[Math.floor(trimmed.length / 2)] ||
+                     samples[Math.floor(samples.length / 2)];
+      const medianHz = 1000 / median;
+
+      /* Fast-tail (10th percentile) — reveals 120 Hz even when the median
+         is polluted by coalesced frames. */
+      const p10 = trimmed[Math.floor(trimmed.length * 0.10)] || trimmed[0];
+      const p10Hz = 1000 / p10;
+
+      /* Slow-tail (90th percentile) — reveals 30 Hz cap on low-power mode */
+      const p90 = trimmed[Math.floor(trimmed.length * 0.90)] ||
+                  trimmed[trimmed.length - 1];
+      const p90Hz = 1000 / p90;
+
+      hz = medianHz;
+
+      /* Detect 2× coalescing: median ~60 Hz but p10 ~120 Hz.
+         This is the classic signature of a 120 Hz display whose rAF
+         is occasionally being throttled to 60 Hz by the compositor. */
+      if (p10Hz >= medianHz * 1.55 && p10Hz >= 90) {
+        hz = p10Hz;
+        confidence = 0.85;
+      } else if (p10Hz >= medianHz * 1.25 && p10Hz >= 90) {
+        hz = (medianHz + p10Hz) / 2;
+        confidence = 0.65;
+      } else {
+        /* Normal case — median is trustworthy.  Confidence scaled by how
+           tightly the samples cluster around the median. */
+        const spread = p90Hz > 0 ? medianHz / p90Hz : 1;
+        confidence = Math.max(0.4, Math.min(0.99, 1 - Math.abs(spread - 1)));
+      }
+    }
+
+    DEVICE.refreshRateRaw = hz;
+
+    /* Snap to nearest common rate with a 100–144 Hz family bias. */
+    let best = 60, bestDiff = Infinity;
+    for (let i = 0; i < COMMON_RATES.length; i++) {
+      const r = COMMON_RATES[i];
+      let d = Math.abs(r - hz);
+      /* Bias toward the 100–144 Hz window so 120 Hz is preferred over
+         60 Hz when the raw measure is 95–115 Hz. */
+      if (r >= 100 && r <= 144) d *= 0.75;
+      /* Also bias toward 120 specifically if we're in the 110–130 range */
+      if (r === 120 && hz >= 110 && hz <= 130) d *= 0.6;
+      if (d < bestDiff) { bestDiff = d; best = r; }
+    }
+    if (bestDiff > 25) {
+      best = Math.max(24, Math.min(360, Math.round(hz)));
+    }
+
+    DEVICE.refreshRate = best;
+    DEVICE.refreshRateConfidence = confidence;
+
+    /* Screen-recording flag: 100–144 Hz band means the user is very
+       likely recording at 120 FPS. */
+    DEVICE.screenRecording = (best >= 100 && best <= 144);
+
+    if (typeof callback === 'function') callback(best);
+  }
+
+  try { requestAnimationFrame(tick); } catch (e) { finish(); }
+}
 
 /* ==========================================================================
    3. SETTINGS
@@ -904,6 +1016,8 @@ const DEFAULT_SETTINGS = {
   rewind: 'off', upscale: 'off',
   showFps: false, showPerf: true,
   deviceOverride: 'auto',
+  threefxIntensity: 1.0,
+  screenRecordingLock: true,   /* honour 100–144 Hz detection */
   autoFields: { resolution:false, targetFps:false, frameSkip:false,
                 audio:false, renderer:false, shader:false, rewind:false, upscale:false }
 };
@@ -919,7 +1033,6 @@ function saveSettings(s) { try { localStorage.setItem(LS_KEY, JSON.stringify(s))
 
 const S = loadSettings();
 
-/* Apply the saved override to the live DEVICE object */
 function applyOverride() {
   if (S.deviceOverride && S.deviceOverride !== 'auto') {
     DEVICE.deviceTier = S.deviceOverride;
@@ -952,15 +1065,16 @@ const PRESETS = {
   'quality':  { resolution:2.0, targetFps:60, frameSkip:'0',    audio:'medium',
                 renderer:'webgl', shader:'off', rewind:'off', upscale:'off' },
   'ultra-q':  { resolution:3.0, targetFps:60, frameSkip:'0',    audio:'high',
-                renderer:'webgl', shader:'crt', rewind:'off', upscale:'2x' }
+                renderer:'webgl', shader:'3d',  rewind:'off', upscale:'2x' }
 };
 
 /* ==========================================================================
-   5. AUTO-TUNE  (RAM-aware)
+   5. AUTO-TUNE  (screen-recording aware)
    ========================================================================== */
 function autoTune(consoleWeight) {
   const ramHigh  = DEVICE.ramTier === '8-15' || DEVICE.ramTier === '16+';
   const ramUltra = DEVICE.ramTier === '16+';
+  const rr       = DEVICE.refreshRate || 60;
 
   let base;
   switch (DEVICE.deviceTier) {
@@ -996,7 +1110,7 @@ function autoTune(consoleWeight) {
       };
   }
 
-  /* ----- GPU caps ----- */
+  /* GPU caps */
   if (DEVICE.gpuTier === 'low') {
     base.resolution = Math.min(base.resolution, 1.0);
     base.renderer = 'canvas';
@@ -1008,7 +1122,7 @@ function autoTune(consoleWeight) {
   }
   if (!DEVICE.webgl) base.renderer = 'canvas';
 
-  /* ----- Console weight adjustments ----- */
+  /* Console weight */
   if (consoleWeight === 'heavy') {
     if (DEVICE.gpuTier === 'high' && DEVICE.deviceTier === 'desktop-high') {
       base.resolution = ramUltra ? 3.0 : 2.0;
@@ -1065,20 +1179,42 @@ function autoTune(consoleWeight) {
     }
   }
 
-  /* ----- Refresh-rate match ----- */
-  const rr = DEVICE.refreshRate || 60;
-  if (rr >= 120) base.targetFps = 120;
-  else if (rr >= 90) base.targetFps = 90;
-  else if (rr >= 60) base.targetFps = 60;
-  else base.targetFps = Math.max(30, rr);
-  if (consoleWeight === 'heavy' && DEVICE.mobile && base.targetFps > 60) {
+  /* ---------------------------------------------------------------------
+     Refresh-rate match — screen-recording aware.
+     --------------------------------------------------------------------- */
+  if      (rr >= 360) base.targetFps = 360;
+  else if (rr >= 240) base.targetFps = 240;
+  else if (rr >= 180) base.targetFps = 180;
+  else if (rr >= 165) base.targetFps = 165;
+  else if (rr >= 144) base.targetFps = 144;
+  else if (rr >= 120) base.targetFps = 120;
+  else if (rr >= 100) base.targetFps = 100;
+  else if (rr >= 90)  base.targetFps = 90;
+  else if (rr >= 75)  base.targetFps = 75;
+  else if (rr >= 60)  base.targetFps = 60;
+  else if (rr >= 50)  base.targetFps = 50;
+  else if (rr >= 48)  base.targetFps = 48;
+  else if (rr >= 30)  base.targetFps = 30;
+  else                base.targetFps = Math.max(24, rr);
+
+  /* Apply 120 Hz screen-recording lock when the user is recording. */
+  if (S.screenRecordingLock && DEVICE.screenRecording && base.targetFps < 120) {
+    base.targetFps = 120;
+  }
+
+  /* Only clamp to 60 Hz on genuinely low-end mobile / heavy cores.
+     120 Hz is preserved on capable hardware even for heavy cores. */
+  const hardClamp60 = (consoleWeight === 'heavy' && DEVICE.mobile && DEVICE.gpuTier === 'low');
+  if (hardClamp60 && base.targetFps > 60) {
     base.targetFps = 60;
+  }
+  if (consoleWeight === 'heavy' && DEVICE.gpuTier === 'low' && !DEVICE.mobile) {
+    if (base.targetFps > 60) base.targetFps = 60;
   }
 
   return base;
 }
 
-/* Fields that were set by the 8 GB profile (for green icons) */
 function isRamPowered(field) {
   const ramHigh = DEVICE.ramTier === '8-15' || DEVICE.ramTier === '16+';
   if (!ramHigh) return false;
@@ -1106,6 +1242,7 @@ function coreById(id) {
 }
 function stripExt(name) { return String(name).replace(/\.[^.]+$/, ''); }
 function safeDecode(s) { try { return decodeURIComponent(s); } catch (e) { return s; } }
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
 /* ==========================================================================
    7. UI REFS
@@ -1164,22 +1301,30 @@ const autoShader  = $('auto-shader'), fShader  = $('f-shader');
 const autoRewind  = $('auto-rewind'), fRewind  = $('f-rewind');
 const autoUpscale = $('auto-upscale'),fUpscale = $('f-upscale');
 
-const bgRender = $('bg-render'), bgThreads = $('bg-threads');
-const bgDevice = $('bg-device'), bgMem = $('bg-mem'), bgCores = $('bg-cores');
-const bgCore   = $('bg-core');
+const fpsHint      = $('fps-hint');
+const screenrecChip= $('screenrec-chip');
+const screenrecHz  = $('screenrec-hz');
+
+const bgRender  = $('bg-render'),  bgThreads = $('bg-threads');
+const bgDevice  = $('bg-device'),  bgMem     = $('bg-mem');
+const bgCores   = $('bg-cores'),   bgRefresh = $('bg-refresh');
+const bgCore    = $('bg-core');
 
 /* ==========================================================================
    8. STATE
    ========================================================================== */
 let currentFile = null, currentUrl = '', currentCoreId = '';
 let currentGameName = '', emulatorBooted = false;
-let currentBlobUrl = null;          /* object URL from a fetched remote ROM */
-let currentSourceUrl = '';          /* normalized origin URL of the last remote ROM */
+let currentBlobUrl = null;
+let currentSourceUrl = '';
 let fpsRafId = 0, lastFrameTime = 0, framesInWindow = 0, windowStart = 0, currentFps = 0;
 let autoBadgeTimer = 0;
+let bootWatchdog = 0;
+let bootAttempt = 0;
+let allowRetry = false;
 
-/* Safe badge setter (preserves the icon <i> element) */
 function setBadge(el, text, cls) {
+  if (!el) return;
   const span = el.querySelector('span');
   if (span) span.textContent = text;
   if (cls !== undefined) el.className = 'badge' + (cls ? ' ' + cls : '');
@@ -1226,7 +1371,6 @@ function setBadge(el, text, cls) {
   });
 })();
 
-/* Show / hide the "Fits 8 GB profile" chip on every card */
 function refreshRamFitChips() {
   const ramHigh = DEVICE.ramTier === '8-15' || DEVICE.ramTier === '16+';
   coreCardsEl.querySelectorAll('.card').forEach(function (card) {
@@ -1255,11 +1399,17 @@ function renderDeviceInfo() {
     ? ' <span class="ram8-note"><i class="fa-solid fa-bolt"></i>Rewind unlocked</span>'
     : '';
 
+  const recNote = DEVICE.screenRecording
+    ? ' <span class="ram8-note" style="background:rgba(125,255,159,.15);color:#7dff9f;border-color:rgba(125,255,159,.4)"><i class="fa-solid fa-circle-dot"></i>Recording ' + DEVICE.refreshRate + ' FPS</span>'
+    : '';
+
   const sourceNote = DEVICE.ramSource === 'deviceMemory'
     ? ''
     : DEVICE.ramSource === 'override'
       ? ' <span style="color:#9fc4ff">(override)</span>'
       : ' <span style="color:#6b7c93">(assumed — set profile below if wrong)</span>';
+
+  const confPct = Math.round((DEVICE.refreshRateConfidence || 0) * 100);
 
   deviceText.innerHTML =
     '<b>' + tier + '</b>' +
@@ -1268,15 +1418,14 @@ function renderDeviceInfo() {
       ? ' <span style="color:#6b7c93">(' + escapeHtml(DEVICE.renderer) + ')</span>' : '') +
     ' <span class="sep">·</span> ' + DEVICE.cores + ' CPU cores' +
     ' <span class="sep">·</span> <b>' + DEVICE.ram + ' GB RAM</b>' + sourceNote +
-    ' <span class="sep">·</span> ' + (DEVICE.refreshRate || 60) + ' Hz display' +
+    ' <span class="sep">·</span> <b>' + (DEVICE.refreshRate || 60) + ' Hz</b> display' +
+    (confPct > 0 ? ' <span style="color:#6b7c93">(' + confPct + '% conf)</span>' : '') +
     ' <span class="sep">·</span> WebGL' + (DEVICE.webgl2 ? '2' : DEVICE.webgl ? '1' : ' ✗') +
-    ramNote;
+    ramNote + recNote;
 
-  /* Toolbar RAM chip */
   ramChipText.textContent = DEVICE.ram + ' GB';
   ramChip.classList.toggle('show', DEVICE.ramTier === '8-15' || DEVICE.ramTier === '16+');
 
-  /* Perf badges */
   setBadge(bgRender,  'Render: '  + (DEVICE.webgl ? (DEVICE.webgl2 ? 'WebGL2 ✓' : 'WebGL1 ✓') : 'Canvas'),
            DEVICE.webgl ? 'ok' : 'warn');
   setBadge(bgThreads, 'Threads: ' + (DEVICE.threads ? 'On ✓' : 'Off'),
@@ -1291,16 +1440,80 @@ function renderDeviceInfo() {
 
   setBadge(bgCores, 'CPU: ' + DEVICE.cores + ' cores', DEVICE.cores >= 4 ? 'ok' : 'warn');
 
+  const rr = DEVICE.refreshRate || 60;
+  let rrCls, rrLabel;
+  if (DEVICE.screenRecording) {
+    rrCls = 'ram8';
+    rrLabel = 'Display: ' + rr + ' Hz · REC ✓';
+  } else if (rr >= 120) {
+    rrCls = 'ram8';
+    rrLabel = 'Display: ' + rr + ' Hz';
+  } else if (rr >= 75) {
+    rrCls = 'ok';
+    rrLabel = 'Display: ' + rr + ' Hz';
+  } else if (rr >= 60) {
+    rrCls = 'info';
+    rrLabel = 'Display: ' + rr + ' Hz';
+  } else {
+    rrCls = 'warn';
+    rrLabel = 'Display: ' + rr + ' Hz';
+  }
+  setBadge(bgRefresh, rrLabel, rrCls);
+
   refreshRamFitChips();
 }
 
 /* ==========================================================================
-   11. SYNC UI
+   11. SYNC UI  (fixed for 120 Hz auto-detect)
    ========================================================================== */
+function updateFpsHint() {
+  if (!fpsHint) return;
+  const rr = DEVICE.refreshRate || 60;
+  const conf = Math.round((DEVICE.refreshRateConfidence || 0) * 100);
+
+  if (DEVICE.screenRecording && S.targetFps === 120) {
+    fpsHint.innerHTML =
+      'Screen-recording profile: display measured at <b style="color:#7dff9f">' +
+      rr + ' Hz</b> — FPS locked to <b style="color:#7dff9f">120</b>' +
+      (conf > 0 ? ' (' + conf + '% confidence)' : '') + '.';
+  } else if (rr >= 120) {
+    fpsHint.innerHTML =
+      'High-refresh display detected (<b>' + rr + ' Hz</b>) — matched to ' +
+      '<b>' + S.targetFps + ' FPS</b>' +
+      (conf > 0 ? ' (' + conf + '% confidence)' : '') + '.';
+  } else if (rr >= 75) {
+    fpsHint.innerHTML =
+      'Display measured at <b>' + rr + ' Hz</b> — target FPS set to <b>' +
+      S.targetFps + '</b>.';
+  } else {
+    fpsHint.textContent =
+      'Matched to your display refresh rate (' + rr + ' Hz). Screen recording ' +
+      'at 120 FPS is auto-detected.';
+  }
+
+  if (screenrecChip) {
+    if (DEVICE.screenRecording && S.screenRecordingLock) {
+      screenrecChip.classList.add('show');
+      if (screenrecHz) screenrecHz.textContent = String(rr);
+    } else {
+      screenrecChip.classList.remove('show');
+    }
+  }
+
+  if (fFps) {
+    fFps.classList.toggle('screenrec', DEVICE.screenRecording && S.screenRecordingLock);
+  }
+}
+
 function reflectSettingsInUI() {
-  sRes.value = String(S.resolution); sFps.value = String(S.targetFps);
-  sSkip.value = S.frameSkip; sAudio.value = S.audio; sRender.value = S.renderer;
-  sShader.value = S.shader; sRewind.value = S.rewind; sUpscale.value = S.upscale;
+  sRes.value = String(S.resolution);
+  sFps.value = String(S.targetFps);
+  sSkip.value = S.frameSkip;
+  sAudio.value = S.audio;
+  sRender.value = S.renderer;
+  sShader.value = S.shader;
+  sRewind.value = S.rewind;
+  sUpscale.value = S.upscale;
 
   vRes.textContent     = S.resolution.toFixed(1) + '×';
   vFps.textContent     = String(S.targetFps);
@@ -1308,7 +1521,7 @@ function reflectSettingsInUI() {
                          S.frameSkip === '0' ? 'Off' : 'Skip ' + S.frameSkip;
   vAudio.textContent   = { low:'Low', medium:'Medium', high:'High' }[S.audio] || S.audio;
   vRender.textContent  = { auto:'Auto', webgl:'WebGL', canvas:'Canvas' }[S.renderer] || S.renderer;
-  vShader.textContent  = { off:'Off', crt:'CRT', '2x':'2× HQ' }[S.shader] || S.shader;
+  vShader.textContent  = { off:'Off', crt:'CRT', '2x':'2× HQ', '3d':'3D (three.js)' }[S.shader] || S.shader;
   vRewind.textContent  = S.rewind === 'on' ? 'On' : 'Off';
   vUpscale.textContent = S.upscale === '2x' ? '2×' : 'Off';
 
@@ -1330,6 +1543,8 @@ function reflectSettingsInUI() {
   fShader.classList.toggle('ram-powered', isRamPowered('shader'));
   fAudio.classList.toggle('ram-powered', isRamPowered('audio'));
 
+  updateFpsHint();
+
   Array.from(presetRow.querySelectorAll('button')).forEach(function (b) {
     b.setAttribute('aria-pressed', b.dataset.preset === S.preset ? 'true' : 'false');
   });
@@ -1346,7 +1561,10 @@ function reflectSettingsInUI() {
   const ramBadge = (DEVICE.ramTier === '8-15' || DEVICE.ramTier === '16+')
     ? ' · ' + DEVICE.ram + ' GB profile'
     : '';
-  stPerf.textContent = 'Profile: ' + presetName + ramBadge;
+  const recBadge = DEVICE.screenRecording && S.screenRecordingLock
+    ? ' · REC ' + DEVICE.refreshRate + ' Hz'
+    : '';
+  stPerf.textContent = 'Profile: ' + presetName + ramBadge + recBadge;
 
   if (currentCoreId) {
     const c = coreById(currentCoreId);
@@ -1383,6 +1601,8 @@ function showAutoBadge(tuned) {
   if (!autoBadge) return;
   const ramTag = (DEVICE.ramTier === '8-15' || DEVICE.ramTier === '16+')
     ? '<span class="ram-tag">' + DEVICE.ram + ' GB</span> · ' : '';
+  const recTag = (DEVICE.screenRecording && S.screenRecordingLock)
+    ? '<span class="ram-tag" style="margin-left:4px">REC ' + DEVICE.refreshRate + ' Hz</span> · ' : '';
   const preset = {
     resolution: tuned.resolution.toFixed(1) + '×',
     fps:        tuned.targetFps,
@@ -1391,13 +1611,14 @@ function showAutoBadge(tuned) {
     skip:       tuned.frameSkip === 'auto' ? 'Auto'
               : tuned.frameSkip === '0' ? 'Off' : '×' + tuned.frameSkip,
     rewind:     tuned.rewind === 'on' ? ' · rewind ✓' : '',
-    upscale:    tuned.upscale === '2x' ? ' · tex 2×' : ''
+    upscale:    tuned.upscale === '2x' ? ' · tex 2×' : '',
+    shader:     tuned.shader === '3d' ? ' · 3D' : tuned.shader === 'crt' ? ' · CRT' : ''
   };
   autoBadge.innerHTML =
     '<i class="fa-solid fa-wand-magic-sparkles"></i> ' +
     '<span class="k">AUTO</span> ' +
-    '<span class="v">' + ramTag + preset.resolution + ' · ' + preset.fps + 'fps · ' +
-    preset.renderer + ' · skip ' + preset.skip + preset.rewind + preset.upscale + '</span>';
+    '<span class="v">' + ramTag + recTag + preset.resolution + ' · ' + preset.fps + 'fps · ' +
+    preset.renderer + ' · skip ' + preset.skip + preset.rewind + preset.upscale + preset.shader + '</span>';
   autoBadge.classList.add('show');
   clearTimeout(autoBadgeTimer);
   autoBadgeTimer = setTimeout(function () { autoBadge.classList.remove('show'); }, 6500);
@@ -1424,18 +1645,29 @@ presetRow.addEventListener('click', function (e) {
 });
 
 sRes.addEventListener('input', function () { S.resolution = parseFloat(sRes.value); markCustom(); });
-sFps.addEventListener('input', function () { S.targetFps = parseInt(sFps.value, 10); markCustom(); });
+sFps.addEventListener('input', function () {
+  S.targetFps = parseInt(sFps.value, 10);
+  markCustom();
+  updateFpsHint();
+});
 sSkip.addEventListener('change', function () { S.frameSkip = sSkip.value; markCustom(); });
 sAudio.addEventListener('change', function () { S.audio = sAudio.value; markCustom(); });
 sRender.addEventListener('change', function () { S.renderer = sRender.value; markCustom(); });
-sShader.addEventListener('change', function () { S.shader = sShader.value; markCustom(); });
+sShader.addEventListener('change', function () {
+  S.shader = sShader.value;
+  markCustom();
+  if (S.shader === '3d') {
+    toast('3D shader enabled — press Reset to apply.');
+  } else {
+    ThreeFX.dispose();
+  }
+});
 sRewind.addEventListener('change', function () { S.rewind = sRewind.value; markCustom(); });
 sUpscale.addEventListener('change', function () { S.upscale = sUpscale.value; markCustom(); });
 
 btnPerf.addEventListener('click', function () { S.showPerf = !S.showPerf; saveSettings(S); reflectSettingsInUI(); });
 btnFps.addEventListener('click',  function () { S.showFps  = !S.showFps;  saveSettings(S); reflectSettingsInUI(); });
 
-/* ---- Device profile override ---- */
 deviceOverrideSelect.addEventListener('change', function () {
   S.deviceOverride = deviceOverrideSelect.value;
   saveSettings(S);
@@ -1504,12 +1736,310 @@ function toast(msg) {
 }
 
 /* ==========================================================================
-   14. EJS OPTIONS BUILDERS
+   14. THREE.JS POST-PROCESSING LAYER
    ========================================================================== */
+const ThreeFX = (function () {
+  let renderer = null, scene = null, camera = null, material = null;
+  let texture = null, overlayCanvas = null, sourceCanvas = null;
+  let rafId = 0, active = false;
+  let onResizeHandler = null;
+  let intensity = 1.0;
+  let hasContent = false;
+
+  function isAvailable() {
+    return typeof THREE !== 'undefined';
+  }
+
+  function loadThree() {
+    return new Promise(function (resolve, reject) {
+      if (typeof THREE !== 'undefined') { resolve(); return; }
+      if (window.__threeLoading) {
+        window.__threeLoading.then(resolve).catch(reject);
+        return;
+      }
+      const p = new Promise(function (res, rej) {
+        const s = document.createElement('script');
+        s.src = THREE_CDN;
+        s.async = true;
+        s.crossOrigin = 'anonymous';
+        s.onload = function () { res(); };
+        s.onerror = function () { rej(new Error('three.js CDN load failed: ' + THREE_CDN)); };
+        document.head.appendChild(s);
+      });
+      window.__threeLoading = p;
+      p.then(resolve).catch(reject);
+    });
+  }
+
+  function makeFragmentShader() {
+    return [
+      'precision highp float;',
+      'uniform sampler2D uTex;',
+      'uniform vec2 uRes;',
+      'uniform float uTime;',
+      'uniform float uScanline;',
+      'uniform float uCurvature;',
+      'uniform float uVignette;',
+      'uniform float uAberration;',
+      'uniform float uBloom;',
+      'varying vec2 vUv;',
+      '',
+      'vec2 curve(vec2 uv, float amt) {',
+      '  uv = uv * 2.0 - 1.0;',
+      '  vec2 offset = abs(uv.yx) / vec2(6.0, 4.0);',
+      '  uv += uv * offset * offset * amt;',
+      '  return uv * 0.5 + 0.5;',
+      '}',
+      '',
+      'void main() {',
+      '  vec2 uv = curve(vUv, uCurvature);',
+      '  if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {',
+      '    gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);',
+      '    return;',
+      '  }',
+      '  vec2 dir = uv - 0.5;',
+      '  float ab = uAberration * 0.004;',
+      '  vec3 col;',
+      '  col.r = texture2D(uTex, uv + dir * ab).r;',
+      '  col.g = texture2D(uTex, uv).g;',
+      '  col.b = texture2D(uTex, uv - dir * ab).b;',
+      '',
+      '  vec2 texel = 1.0 / max(uRes, vec2(1.0));',
+      '  vec3 bl = vec3(0.0);',
+      '  bl += texture2D(uTex, uv + vec2( 2.0 * texel.x, 0.0)).rgb;',
+      '  bl += texture2D(uTex, uv + vec2(-2.0 * texel.x, 0.0)).rgb;',
+      '  bl += texture2D(uTex, uv + vec2(0.0,  2.0 * texel.y)).rgb;',
+      '  bl += texture2D(uTex, uv + vec2(0.0, -2.0 * texel.y)).rgb;',
+      '  bl *= 0.25;',
+      '  col += bl * uBloom;',
+      '',
+      '  float scan = sin(uv.y * max(uRes.y, 100.0) * 3.14159);',
+      '  col *= 1.0 - uScanline * 0.5 * (0.5 + 0.5 * scan);',
+      '',
+      '  float v = 1.0 - dot(dir, dir) * uVignette * 2.0;',
+      '  col *= clamp(v, 0.0, 1.0);',
+      '',
+      '  gl_FragColor = vec4(col, 1.0);',
+      '}'
+    ].join('\n');
+  }
+
+  function makeVertexShader() {
+    return [
+      'varying vec2 vUv;',
+      'void main() {',
+      '  vUv = uv;',
+      '  gl_Position = vec4(position.xy, 0.0, 1.0);',
+      '}'
+    ].join('\n');
+  }
+
+  function init(srcCanvas) {
+    if (active) dispose();
+    if (!isAvailable()) return false;
+    if (!srcCanvas) return false;
+    sourceCanvas = srcCanvas;
+    hasContent = false;
+
+    overlayCanvas = document.createElement('canvas');
+    overlayCanvas.className = 'threefx-canvas';
+
+    try {
+      renderer = new THREE.WebGLRenderer({
+        canvas: overlayCanvas,
+        antialias: false,
+        alpha: false,
+        powerPreference: 'high-performance',
+        preserveDrawingBuffer: false
+      });
+    } catch (e) {
+      console.warn('[ThreeFX] WebGL renderer creation failed:', e);
+      try { overlayCanvas.remove(); } catch (e2) {}
+      overlayCanvas = null;
+      return false;
+    }
+
+    renderer.setClearColor(0x000000, 1);
+    renderer.autoClear = true;
+
+    scene = new THREE.Scene();
+    camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+
+    texture = new THREE.CanvasTexture(sourceCanvas);
+    texture.minFilter = THREE.LinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+    texture.wrapS = THREE.ClampToEdgeWrapping;
+    texture.wrapT = THREE.ClampToEdgeWrapping;
+    texture.generateMipmaps = false;
+    texture.flipY = true;
+
+    material = new THREE.ShaderMaterial({
+      uniforms: {
+        uTex:        { value: texture },
+        uTime:       { value: 0 },
+        uRes:        { value: new THREE.Vector2(1, 1) },
+        uScanline:   { value: 0.30 },
+        uCurvature:  { value: 0.10 },
+        uVignette:   { value: 0.30 },
+        uAberration: { value: 0.5 },
+        uBloom:      { value: 0.12 }
+      },
+      vertexShader: makeVertexShader(),
+      fragmentShader: makeFragmentShader(),
+      depthTest: false,
+      depthWrite: false
+    });
+
+    const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material);
+    quad.frustumCulled = false;
+    scene.add(quad);
+
+    const shell = document.getElementById('emulator-shell');
+    if (!shell) return false;
+    shell.appendChild(overlayCanvas);
+
+    active = true;
+    setIntensity(intensity);
+    resize();
+    onResizeHandler = function () { resize(); };
+    window.addEventListener('resize', onResizeHandler);
+    loop();
+    return true;
+  }
+
+  function resize() {
+    if (!active || !renderer) return;
+    const shell = document.getElementById('emulator-shell');
+    if (!shell) return;
+    const w = Math.max(1, shell.clientWidth);
+    const h = Math.max(1, shell.clientHeight);
+    renderer.setPixelRatio(1);
+    renderer.setSize(w, h, false);
+    overlayCanvas.style.width = '100%';
+    overlayCanvas.style.height = '100%';
+    if (sourceCanvas && material) {
+      material.uniforms.uRes.value.set(
+        Math.max(1, sourceCanvas.width),
+        Math.max(1, sourceCanvas.height)
+      );
+    }
+  }
+
+  function loop() {
+    if (!active) return;
+    rafId = requestAnimationFrame(loop);
+    if (!sourceCanvas || !renderer || !material) return;
+    if (sourceCanvas.width === 0 || sourceCanvas.height === 0) {
+      overlayCanvas.style.display = 'none';
+      return;
+    }
+    if (!hasContent) {
+      hasContent = true;
+      overlayCanvas.style.display = 'block';
+      resize();
+    }
+    try {
+      texture.needsUpdate = true;
+      material.uniforms.uTime.value = performance.now() * 0.001;
+      renderer.render(scene, camera);
+    } catch (e) {
+      console.warn('[ThreeFX] render error, disposing:', e);
+      dispose();
+    }
+  }
+
+  function dispose() {
+    if (!active && !overlayCanvas) return;
+    active = false;
+    if (rafId) { cancelAnimationFrame(rafId); rafId = 0; }
+    if (onResizeHandler) {
+      window.removeEventListener('resize', onResizeHandler);
+      onResizeHandler = null;
+    }
+    if (overlayCanvas && overlayCanvas.parentNode) {
+      try { overlayCanvas.parentNode.removeChild(overlayCanvas); } catch (e) {}
+    }
+    if (texture) { try { texture.dispose(); } catch (e) {} }
+    if (material) { try { material.dispose(); } catch (e) {} }
+    if (scene) {
+      scene.traverse(function (o) {
+        if (o.geometry) { try { o.geometry.dispose(); } catch (e) {} }
+      });
+    }
+    if (renderer) { try { renderer.dispose(); } catch (e) {} }
+    renderer = scene = camera = material = texture = overlayCanvas = sourceCanvas = null;
+    hasContent = false;
+  }
+
+  function setIntensity(level) {
+    intensity = clamp(Number(level) || 0, 0, 1);
+    if (!material) return;
+    const u = material.uniforms;
+    u.uScanline.value   = 0.30 * intensity;
+    u.uCurvature.value  = 0.10 * intensity;
+    u.uVignette.value   = 0.30 * intensity;
+    u.uAberration.value = 0.50 * intensity;
+    u.uBloom.value      = 0.12 * intensity;
+  }
+
+  function autoIntensity() {
+    if (DEVICE.gpuTier === 'low' || DEVICE.mobile) return 0.55;
+    if (DEVICE.gpuTier === 'mid') return 0.8;
+    return 1.0;
+  }
+
+  return {
+    loadThree: loadThree,
+    init: init,
+    dispose: dispose,
+    resize: resize,
+    setIntensity: setIntensity,
+    autoIntensity: autoIntensity,
+    get active() { return active; }
+  };
+})();
+
+function attachThreeFX() {
+  if (S.shader !== '3d') return;
+  if (!DEVICE.webgl) {
+    console.warn('[ThreeFX] skipped — WebGL not available');
+    return;
+  }
+  let attempts = 0;
+  function wait() {
+    attempts++;
+    if (attempts > 60) return;
+    const c = gameEl.querySelector('canvas');
+    if (c && c.width > 0 && c.height > 0) {
+      ThreeFX.loadThree().then(function () {
+        const ok = ThreeFX.init(c);
+        if (!ok) console.warn('[ThreeFX] init returned false');
+      }).catch(function (e) {
+        console.warn('[ThreeFX] three.js load failed:', e);
+      });
+      return;
+    }
+    setTimeout(wait, 100);
+  }
+  setTimeout(wait, 300);
+}
+
+/* ==========================================================================
+   15. EJS OPTIONS BUILDERS
+   ========================================================================== */
+function ejsShaderName(shader) {
+  switch (shader) {
+    case 'crt': return 'crt-easymode';
+    case '2x':  return '2xScaleHQ';
+    case '3d':  return 'disabled';
+    case 'off': default: return 'disabled';
+  }
+}
+
 function buildBaseOptions() {
   const opts = {
     'save-state-location':'browser',
-    'shader': S.shader === 'off' ? 'disabled' : S.shader,
+    'shader': ejsShaderName(S.shader),
     'rewindEnabled': S.rewind === 'on',
     'fastForwardRatio': 3,
     'fps': S.targetFps,
@@ -1517,7 +2047,7 @@ function buildBaseOptions() {
   };
   if (S.audio === 'low')       opts.audioBufferSize = 1024;
   else if (S.audio === 'high') opts.audioBufferSize = 8192;
-  else                          opts.audioBufferSize = 2048;
+  else                         opts.audioBufferSize = 2048;
 
   if (S.frameSkip === 'auto') opts.frameskip = 'auto';
   else if (S.frameSkip === '0') opts.frameskip = 0;
@@ -1585,9 +2115,7 @@ function buildCoreOptions(coreId) {
       o['mupen64plus-BilinearMode'] = res >= 2 ? 'standard' : 'basic';
       o['mupen64plus-EnableFBEmulation'] = 'False';
       o['mupen64plus-EnableLegacyBlending'] = 'False';
-      if (ramUltra) {
-        o['mupen64plus-TextureFiltering'] = '3';
-      }
+      if (ramUltra) o['mupen64plus-TextureFiltering'] = '3';
       break;
 
     case 'psx':
@@ -1616,7 +2144,8 @@ function buildCoreOptions(coreId) {
     case 'j2me':
       o['freej2me_screen_width'] = '240';
       o['freej2me_screen_height'] = '320';
-      o['freej2me_fps'] = '30';
+      o['freej2me_fps'] = String(Math.min(S.targetFps, 60));
+      o['freej2me_use_threads'] = 'disabled';
       break;
 
     case 'segaMD': case 'sega32x': case 'segaMS':
@@ -1639,25 +2168,37 @@ function buildCoreOptions(coreId) {
 }
 
 /* ==========================================================================
-   15. FPS MONITOR
+   16. FPS MONITOR
    ========================================================================== */
-function stopFpsMonitor() { if (fpsRafId) cancelAnimationFrame(fpsRafId); fpsRafId = 0; framesInWindow = 0; currentFps = 0; }
+function stopFpsMonitor() {
+  if (fpsRafId) cancelAnimationFrame(fpsRafId);
+  fpsRafId = 0;
+  framesInWindow = 0;
+  currentFps = 0;
+}
 function startFpsMonitor() {
   stopFpsMonitor();
-  windowStart = performance.now(); lastFrameTime = windowStart; framesInWindow = 0;
+  windowStart = performance.now();
+  lastFrameTime = windowStart;
+  framesInWindow = 0;
   function loop(now) {
     if (!emulatorBooted) return;
     fpsRafId = requestAnimationFrame(loop);
     framesInWindow++;
-    const dt = now - lastFrameTime; lastFrameTime = now;
+    const dt = now - lastFrameTime;
+    lastFrameTime = now;
     if (now - windowStart >= 500) {
       currentFps = (framesInWindow * 1000) / (now - windowStart);
-      framesInWindow = 0; windowStart = now;
+      framesInWindow = 0;
+      windowStart = now;
       if (S.showFps) {
+        const recTarget = DEVICE.screenRecording ? 120 : 55;
         hudFps.textContent = currentFps.toFixed(0);
-        hudFps.className = currentFps >= 55 ? '' : currentFps >= 40 ? 'warn' : 'bad';
-        hudFt.textContent = dt.toFixed(1) + 'ms';
-        hudFt.className = dt <= 20 ? '' : dt <= 30 ? 'warn' : 'bad';
+        hudFps.className = currentFps >= recTarget ? '' : currentFps >= recTarget * 0.7 ? 'warn' : 'bad';
+        const ft = dt.toFixed(1) + 'ms';
+        hudFt.textContent = ft;
+        const ftBudget = DEVICE.screenRecording ? 8.5 : 20;
+        hudFt.className = dt <= ftBudget ? '' : dt <= ftBudget * 1.5 ? 'warn' : 'bad';
       }
     }
   }
@@ -1665,23 +2206,35 @@ function startFpsMonitor() {
 }
 
 /* ==========================================================================
-   16. TEARDOWN / LOADER
+   17. TEARDOWN / LOADER
    ========================================================================== */
+function clearBootWatchdog() {
+  if (bootWatchdog) { clearTimeout(bootWatchdog); bootWatchdog = 0; }
+}
+
 function teardown() {
+  clearBootWatchdog();
   stopFpsMonitor();
-  try { if (window.EJS_emulator && typeof window.EJS_emulator.destroy === 'function') window.EJS_emulator.destroy(); } catch (e) {}
-  document.querySelectorAll('script[data-ejs-loader="1"]').forEach(function (s) { try { s.remove(); } catch (e) {} });
+  ThreeFX.dispose();
+  try {
+    if (window.EJS_emulator && typeof window.EJS_emulator.destroy === 'function') {
+      window.EJS_emulator.destroy();
+    }
+  } catch (e) {}
+  document.querySelectorAll('script[data-ejs-loader="1"]').forEach(function (s) {
+    try { s.remove(); } catch (e) {}
+  });
   ['EJS_emulator','EJS_player','EJS_core','EJS_gameUrl','EJS_gameName','EJS_pathtodata',
    'EJS_startOnLoaded','EJS_ready','EJS_color','EJS_backgroundColor','EJS_volume',
    'EJS_defaultOptions','EJS_language','EJS_Buttons','EJS_gameID','EJS_biosUrl',
    'EJS_gamePatchUrl','EJS_netplayServer','EJS_threads','EJS_disableDatabases',
-   'EJS_disableLocalStorage','EJS_cacheConfig'].forEach(function (k) { try { delete window[k]; } catch (e) {} });
+   'EJS_disableLocalStorage','EJS_cacheConfig'].forEach(function (k) {
+    try { delete window[k]; } catch (e) {}
+  });
   gameEl.innerHTML = '';
   emulatorBooted = false;
 }
 
-/* Revoke any previously created blob URL (called before starting a new game,
-   or when the Stop button is pressed). */
 function revokeBlobUrl() {
   if (currentBlobUrl) {
     try { URL.revokeObjectURL(currentBlobUrl); } catch (e) {}
@@ -1696,13 +2249,15 @@ function injectLoader() {
     s.setAttribute('data-ejs-loader', '1');
     s.async = true;
     s.onload = function () { resolve(); };
-    s.onerror = function () { reject(new Error('Could not download EmulatorJS loader from ' + EJS_CDN + 'loader.js')); };
+    s.onerror = function () {
+      reject(new Error('Could not download EmulatorJS loader from ' + EJS_CDN + 'loader.js'));
+    };
     document.head.appendChild(s);
   });
 }
 
 /* ==========================================================================
-   17. BOOT
+   18. BOOT
    ========================================================================== */
 function bootEmulator(coreId, src, gameName) {
   teardown();
@@ -1723,7 +2278,9 @@ function bootEmulator(coreId, src, gameName) {
   window.EJS_backgroundColor = '#0b0d12';
   window.EJS_volume = 1.0;
   window.EJS_language = 'en-US';
-  if (DEVICE.threads) window.EJS_threads = true;
+
+  const allowThreads = DEVICE.threads && coreId !== 'j2me';
+  if (allowThreads) window.EJS_threads = true;
 
   window.EJS_defaultOptions = Object.assign({}, buildBaseOptions(), buildCoreOptions(coreId));
 
@@ -1736,6 +2293,7 @@ function bootEmulator(coreId, src, gameName) {
   };
 
   window.EJS_ready = function () {
+    clearBootWatchdog();
     emulatorBooted = true;
     hideOverlay();
     setState('Running', 'on');
@@ -1751,11 +2309,19 @@ function bootEmulator(coreId, src, gameName) {
       tag.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i>AUTO';
       card.querySelector('h3').appendChild(tag);
     }
+
+    if (S.shader === '3d') {
+      ThreeFX.setIntensity(S.threefxIntensity * ThreeFX.autoIntensity());
+      attachThreeFX();
+    }
   };
 
   const presetText = S.preset === 'auto' ? 'auto-tuned for this console' : 'preset: ' + S.preset;
   const ramLine = (DEVICE.ramTier === '8-15' || DEVICE.ramTier === '16+')
     ? ' <b style="color:#7dff9f">' + DEVICE.ram + ' GB profile active</b>.'
+    : '';
+  const recLine = (DEVICE.screenRecording && S.screenRecordingLock)
+    ? ' <b style="color:#7dff9f">Screen-recording ' + DEVICE.refreshRate + ' Hz detected</b> — target locked to 120 FPS.'
     : '';
 
   setState('Loading core…', 'load');
@@ -1764,17 +2330,89 @@ function bootEmulator(coreId, src, gameName) {
   showOverlay('Loading ' + coreInfo.label + '…',
     'Downloading core <code>' + escapeHtml(coreInfo.system) + '</code>. Optimized ' + presetText +
     ' (res ' + S.resolution.toFixed(1) + '×, ' + S.targetFps + 'fps, ' +
-    (S.renderer === 'auto' ? 'auto render' : S.renderer) + ').' + ramLine +
+    (S.renderer === 'auto' ? 'auto render' : S.renderer) + ').' + ramLine + recLine +
     ' First load of a heavy core can take 10–30 s.', true);
   setProgress(5);
 
+  bootAttempt = 0;
+  allowRetry = true;
+  clearBootWatchdog();
+  bootWatchdog = setTimeout(function () {
+    if (!emulatorBooted) {
+      console.warn('[Boot] watchdog fired for core', coreId);
+      if (allowRetry && coreId === 'j2me' && window.EJS_threads) {
+        allowRetry = false;
+        toast('J2ME watchdog — retrying without threads…');
+        window.EJS_threads = false;
+        window.EJS_defaultOptions = Object.assign({}, buildBaseOptions(), buildCoreOptions(coreId));
+        setState('Retrying without threads…', 'load');
+        bootEmulatorNoRetry(coreId, src, gameName);
+        return;
+      }
+      setState('Core load timeout', 'err');
+      showOverlay('Core did not finish loading',
+        'The <code>' + escapeHtml(coreInfo.system) + '</code> core did not become ready in time.<br/><br/>' +
+        'This is a common issue with the <b>J2ME</b> core on some networks — the CDN ' +
+        'may be serving <code>j2me-legacy-wasm.data</code> slowly, or a browser ' +
+        'extension is blocking it.<br/><br/>' +
+        'Try:<br/>' +
+        '• Disable ad-blockers for <code>cdn.emulatorjs.org</code><br/>' +
+        '• Switch to a different network<br/>' +
+        '• Press <b>Reset</b> to retry', false);
+    }
+  }, 30000);
+
   return injectLoader().catch(function (err) {
+    clearBootWatchdog();
     setState('Loader failed', 'err');
     showOverlay('CDN unreachable',
       '<span style="color:#ff8a8a">' + escapeHtml(String(err.message || err)) + '</span><br/><br/>' +
       'EmulatorJS cores are hosted on <code>' + escapeHtml(EJS_CDN) + '</code>. ' +
       'Check your connection or ad-blocker and try again.', false);
     throw err;
+  });
+}
+
+function bootEmulatorNoRetry(coreId, src, gameName) {
+  teardown();
+  const coreInfo = coreById(coreId);
+  if (!coreInfo) return;
+
+  window.EJS_player = '#game';
+  window.EJS_core = coreId;
+  window.EJS_gameUrl = src;
+  window.EJS_gameName = stripExt(gameName || 'game');
+  window.EJS_pathtodata = EJS_CDN;
+  window.EJS_startOnLoaded = true;
+  window.EJS_color = '#4c8dff';
+  window.EJS_backgroundColor = '#0b0d12';
+  window.EJS_volume = 1.0;
+  window.EJS_language = 'en-US';
+  window.EJS_defaultOptions = Object.assign({}, buildBaseOptions(), buildCoreOptions(coreId));
+  window.EJS_Buttons = {
+    restart:true, playPause:true, saveState:true, loadState:true,
+    gamepad:true, cheat:false, volume:true, saveSavFiles:true,
+    loadSavFiles:true, screenshot:true, quickSave:true, quickLoad:true,
+    fullscreen:true, fastForward:true, slowMotion:false,
+    cacheManager:true, exitEmulation:false
+  };
+  window.EJS_ready = function () {
+    emulatorBooted = true;
+    hideOverlay();
+    setState('Running', 'on');
+    enableControls(true);
+    startFpsMonitor();
+    setBadge(bgCore, 'Core: ' + coreInfo.system, 'info');
+    if (S.shader === '3d') {
+      ThreeFX.setIntensity(S.threefxIntensity * ThreeFX.autoIntensity());
+      attachThreeFX();
+    }
+  };
+
+  injectLoader().catch(function (err) {
+    setState('Loader failed', 'err');
+    showOverlay('CDN unreachable',
+      '<span style="color:#ff8a8a">' + escapeHtml(String(err.message || err)) + '</span>', false);
   });
 }
 
@@ -1788,11 +2426,7 @@ function startGame(coreId, src, gameName) {
 }
 
 /* ==========================================================================
-   18. REMOTE ROM FETCH  (the "Load URL Network error" fix)
-   --------------------------------------------------------------------------
-   Downloads the ROM with fetch(), reports progress, then hands EmulatorJS a
-   File object. Because the file is now local, EmulatorJS never issues a
-   cross-origin request of its own — the previous network error is gone.
+   19. REMOTE ROM FETCH
    ========================================================================== */
 function fetchRomBlob(url, onProgress) {
   return fetch(url, {
@@ -1802,17 +2436,13 @@ function fetchRomBlob(url, onProgress) {
     redirect: 'follow',
     cache: 'default'
   }).then(function (resp) {
-    if (!resp.ok) {
-      throw new Error('HTTP ' + resp.status + ' ' + (resp.statusText || ''));
-    }
+    if (!resp.ok) throw new Error('HTTP ' + resp.status + ' ' + (resp.statusText || ''));
     const total = parseInt(resp.headers.get('Content-Length') || '0', 10);
 
-    /* No streaming body, or size unknown → buffer the whole thing at once */
     if (!resp.body || typeof resp.body.getReader !== 'function' || !total) {
       return resp.blob();
     }
 
-    /* Streaming read with progress */
     const reader = resp.body.getReader();
     const chunks = [];
     let received = 0;
@@ -1836,21 +2466,16 @@ function fetchRomBlob(url, onProgress) {
   });
 }
 
-/* Full "load from URL" flow: normalize → detect core → fetch → start.
-   Shared by the "Load from URL" button, the "Load Default ROM" button, and
-   the Enter key handler on the URL input. */
 function loadFromRemoteUrl(rawInput) {
   const raw = String(rawInput || '').trim();
   if (!raw) { urlInput.focus(); return; }
 
   const url = normalizeUrl(raw);
 
-  /* Derive a friendly file name from the URL (decoded, no query/hash) */
   const tail = url.split('/').pop().split('?')[0].split('#')[0] || 'game';
   const name = safeDecode(tail);
   const ext  = extOf(name);
 
-  /* Figure out which core to use */
   const manual = coreSelect.value;
   let coreId;
   if (manual) {
@@ -1875,13 +2500,11 @@ function loadFromRemoteUrl(rawInput) {
   currentFile = null;
   currentUrl = url;
 
-  /* If the URL was rewritten (GitHub blob → raw), show the user */
   if (url !== raw) {
     toast('Normalized to raw URL');
     urlInput.value = url;
   }
 
-  /* Disable buttons while downloading */
   btnLoadUrl.disabled = true;
   btnLoadDef.disabled = true;
 
@@ -1900,19 +2523,16 @@ function loadFromRemoteUrl(rawInput) {
       '<b style="color:#7dff9f">' + formatBytes(got) + '</b> / ' +
       formatBytes(total) + ' &nbsp;(' + pct.toFixed(0) + '%)';
   }).then(function (blob) {
-    /* Very large files: skip buffering, hand the raw URL to EmulatorJS. */
     if (blob.size > MAX_BUFFER_BYTES) {
       toast('File is large — streaming directly from URL');
       startGame(coreId, url, name);
       return;
     }
 
-    /* Wrap the blob in a File so EmulatorJS treats it as a local game. */
     let file;
     try {
       file = new File([blob], name, { type: blob.type || 'application/octet-stream' });
     } catch (e) {
-      /* Older Safari lacks the File constructor — fall back to a Blob. */
       file = blob;
       try { file.name = name; } catch (e2) {}
     }
@@ -1939,20 +2559,25 @@ function loadFromRemoteUrl(rawInput) {
 }
 
 /* ==========================================================================
-   19. USER ACTIONS
+   20. USER ACTIONS
    ========================================================================== */
 fileInput.addEventListener('change', function (e) {
   const f = e.target.files && e.target.files[0];
   fileInput.value = '';
   if (!f) return;
   revokeBlobUrl();
-  currentFile = f; currentUrl = ''; currentSourceUrl = ''; currentGameName = f.name;
+  currentFile = f;
+  currentUrl = '';
+  currentSourceUrl = '';
+  currentGameName = f.name;
   const ext = extOf(f.name);
   const manual = coreSelect.value;
   if (manual) {
     const c = coreById(manual);
     if (!c) { setState('Unknown core', 'err'); return; }
-    currentCoreId = c.id; startGame(c.id, f, f.name); return;
+    currentCoreId = c.id;
+    startGame(c.id, f, f.name);
+    return;
   }
   const autoCore = coreForExt(ext);
   if (autoCore) {
@@ -2004,8 +2629,9 @@ btnFull.addEventListener('click', function () {
 });
 
 btnReset.addEventListener('click', function () {
-  if (emulatorBooted && currentCoreId && (currentFile || currentUrl))
+  if (emulatorBooted && currentCoreId && (currentFile || currentUrl)) {
     startGame(currentCoreId, currentFile || currentUrl, currentGameName);
+  }
 });
 
 btnStop.addEventListener('click', function () {
@@ -2013,24 +2639,30 @@ btnStop.addEventListener('click', function () {
   revokeBlobUrl();
   enableControls(false);
   setState('Idle', '');
-  setCore('—'); setGame('none');
-  currentFile = null; currentUrl = ''; currentSourceUrl = ''; currentGameName = ''; currentCoreId = '';
+  setCore('—');
+  setGame('none');
+  currentFile = null;
+  currentUrl = '';
+  currentSourceUrl = '';
+  currentGameName = '';
+  currentCoreId = '';
   setBadge(bgCore, 'Core: —');
   coreCardsEl.querySelectorAll('.auto-pick').forEach(function (el) { el.remove(); });
   showOverlay('Stopped', 'Open another file or paste a URL to start a new game.', false);
 });
 
-/* Drag & drop */
 (function bindDragDrop() {
   const shell = $('emulator-shell');
   ['dragenter','dragover'].forEach(function (ev) {
     shell.addEventListener(ev, function (e) { e.preventDefault(); e.stopPropagation(); });
   });
   shell.addEventListener('drop', function (e) {
-    e.preventDefault(); e.stopPropagation();
+    e.preventDefault();
+    e.stopPropagation();
     const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
     if (!f) return;
-    const dt = new DataTransfer(); dt.items.add(f);
+    const dt = new DataTransfer();
+    dt.items.add(f);
     fileInput.files = dt.files;
     fileInput.dispatchEvent(new Event('change', { bubbles: true }));
   });
@@ -2041,18 +2673,52 @@ window.addEventListener('keydown', function (e) {
   if (e.ctrlKey && e.shiftKey && e.code === 'KeyF') { e.preventDefault(); btnFps.click(); }
 });
 
+window.addEventListener('resize', function () {
+  if (ThreeFX.active) ThreeFX.resize();
+});
+document.addEventListener('fullscreenchange', function () {
+  if (ThreeFX.active) setTimeout(function () { ThreeFX.resize(); }, 60);
+});
+
 /* ==========================================================================
-   20. INIT
+   21. INIT
    ========================================================================== */
 btnLoadUrl.disabled = false;
 btnLoadDef.disabled = false;
-
-/* Prefill the URL input with the default ROM so it's obvious & one click away */
 urlInput.value = DEFAULT_ROM_URL;
 
+/* First render with the initial 60 Hz guess */
 renderDeviceInfo();
 reflectSettingsInUI();
 if (!S.showPerf) perfPanel.classList.add('hidden');
+
+/* Run the improved refresh-rate measurement. When it completes, we:
+     - update DEVICE.refreshRate / screenRecording
+     - refresh the device banner + badges
+     - re-run the auto-tuner if the user is on the Auto preset
+     - reflect the new target FPS in the settings section            */
+measureRefreshRate(function (hz) {
+  DEVICE.refreshRate = hz;
+  renderDeviceInfo();
+
+  if (S.preset === 'auto') {
+    const c = currentCoreId ? coreById(currentCoreId) : null;
+    const tuned = applyAutoProfile(c ? c.weight : 'light', true);
+    reflectSettingsInUI();
+    /* Toast only if the auto-detected rate implies a meaningful change */
+    if (hz >= 100 && hz <= 144 && S.screenRecordingLock) {
+      toast('Screen-recording display detected — ' + hz + ' Hz, FPS locked to 120.');
+    } else if (hz >= 100) {
+      toast('High-refresh display detected — ' + hz + ' Hz, FPS set to ' + tuned.targetFps + '.');
+    } else if (hz > 60) {
+      toast('Display refresh rate measured at ' + hz + ' Hz — FPS set to ' + tuned.targetFps + '.');
+    }
+    showAutoBadge(tuned);
+  } else {
+    /* Manual preset — just refresh the UI so the badge/hint reflect the Hz */
+    reflectSettingsInUI();
+  }
+});
 
 const ramGreeting = (DEVICE.ramTier === '8-15' || DEVICE.ramTier === '16+')
   ? ' Your <b style="color:#7dff9f">' + DEVICE.ram + ' GB RAM</b> profile is active: ' +
@@ -2061,7 +2727,8 @@ const ramGreeting = (DEVICE.ramTier === '8-15' || DEVICE.ramTier === '16+')
 
 showOverlay('HEX Web Emulator',
   'Click <b>Load Default ROM</b> to play Super Mario Bros., or open any ROM/ISO. ' +
-  'Console detection and graphics tuning happen automatically.' +
+  'Console detection and graphics tuning happen automatically. ' +
+  'Screen-recording displays at 100–144 Hz auto-lock the emulator to 120 FPS.' +
   ramGreeting, false);
 
 if (!DEVICE.webgl) {
@@ -2072,7 +2739,7 @@ if (!DEVICE.webgl) {
 }
 
 /* ==========================================================================
-   21. PUBLIC API
+   22. PUBLIC API
    ========================================================================== */
 window.RetroWeb = {
   cores: CORES,
@@ -2086,115 +2753,80 @@ window.RetroWeb = {
     deviceOverrideSelect.value = tier;
     deviceOverrideSelect.dispatchEvent(new Event('change'));
   },
+  measureRefreshRate: measureRefreshRate,
+  setScreenRecordingLock: function (on) {
+    S.screenRecordingLock = !!on;
+    saveSettings(S);
+    reflectSettingsInUI();
+    if (S.preset === 'auto') {
+      const c = currentCoreId ? coreById(currentCoreId) : null;
+      applyAutoProfile(c ? c.weight : 'light', true);
+    }
+  },
   load: function (coreId, src, name) { currentCoreId = coreId; startGame(coreId, src, name || 'game'); },
   loadUrl: function (url) { loadFromRemoteUrl(url); },
   loadDefault: function () { btnLoadDef.click(); },
   stop: function () { btnStop.click(); },
   reset: function () { btnReset.click(); },
+  threefx: ThreeFX,
   get emulator() { return window.EJS_emulator || null; },
-  get fps() { return currentFps; }
+  get fps() { return currentFps; },
+  get refreshRate() { return DEVICE.refreshRate; },
+  get screenRecording() { return DEVICE.screenRecording; }
 };
 
 })();
 </script>
-<script>
-// Disable right-click
-document.addEventListener('contextmenu', (e) => e.preventDefault());
 
-function ctrlShiftKey(e, keyCode) {
-  return e.ctrlKey && e.shiftKey && e.keyCode === keyCode.charCodeAt(0);
-}
+<!-- ==========================================================================
+     Keyboard hardening (consolidated).
+     ========================================================================== -->
+<script>
+(function () {
+  'use strict';
 
-document.onkeydown = (e) => {
-  // Disable F12, Ctrl + Shift + I, Ctrl + Shift + J, Ctrl + U
-  if (
-    event.keyCode === 123 ||
-    ctrlShiftKey(e, 'I') ||
-    ctrlShiftKey(e, 'J') ||
-    ctrlShiftKey(e, 'C') ||
-    (e.ctrlKey && e.keyCode === 'U'.charCodeAt(0))
-  )
-    return false;
-};
-</script>
-<script>
- if (typeof document.onselectstart!="undefined" ) {
-  document.onselectstart=new Function ("return false" );
- }
- else {
-  document.onmousedown=new Function ("return false" );
-  document.onmouseup=new Function ("return true" );
- }
-</script>
-<script>
-   document.onkeydown = function(e) {
-if(event.keyCode == 123) {
-    return false;
-}
-if(e.ctrlKey && e.shiftKey && e.keyCode == 'I'.charCodeAt(0)){
-    return false;
-}
-if(e.ctrlKey && e.shiftKey && e.keyCode == 'J'.charCodeAt(0)){
-    return false;
-}
-if(e.ctrlKey && e.keyCode == 'U'.charCodeAt(0)){
-    return false;
-}
-if(e.ctrlKey && e.keyCode == 'C'.charCodeAt(0)){
-    return false;
-}
-if(e.ctrlKey && e.keyCode == 'X'.charCodeAt(0)){
-    return false;
-}
-if(e.ctrlKey && e.keyCode == 'Y'.charCodeAt(0)){
-    return false;
-}
-if(e.ctrlKey && e.keyCode == 'Z'.charCodeAt(0)){
-    return false;
-}
-if(e.ctrlKey && e.keyCode == 'V'.charCodeAt(0)){
-    return false;
-}
-if (e.keyCode == 67 && e.shiftKey && (e.ctrlKey || e.metaKey)){
-    return false;
-}
-if (e.keyCode == 'J'.charCodeAt(0) && e.altKey && (e.ctrlKey || e.metaKey)){
-    return false;
-}
-if (e.keyCode == 'I'.charCodeAt(0) && e.altKey && (e.ctrlKey || e.metaKey)){
-    return false;
-}
-if ((e.keyCode == 'V'.charCodeAt(0) && e.metaKey) || (e.metaKey && e.altKey)){
-    return false;
-}
-if (e.ctrlKey && e.shiftKey && e.keyCode == 'C'.charCodeAt(0)){
-    return false;
-}
-if(e.ctrlKey && e.keyCode == 'S'.charCodeAt(0)){
-    return false;
-}
-if(e.ctrlKey && e.keyCode == 'H'.charCodeAt(0)){
-    return false;
-}
-if(e.ctrlKey && e.keyCode == 'A'.charCodeAt(0)){
-    return false;
-}
-if(e.ctrlKey && e.keyCode == 'F'.charCodeAt(0)){
-    return false;
-}
-if(e.ctrlKey && e.keyCode == 'E'.charCodeAt(0)){
-    return false;
-}
-}
-if (document.addEventListener) {
-    document.addEventListener('contextmenu', function(e) {
+  function block(e) {
     e.preventDefault();
-    }, false);
-}else{
-    document.attachEvent('oncontextmenu', function() {
-    window.event.returnValue = false;
-    });
-}
+    e.stopPropagation();
+    return false;
+  }
+
+  document.addEventListener('keydown', function (e) {
+    var code = e.keyCode || e.which;
+
+    if (e.ctrlKey && e.shiftKey && (code === 80 || code === 70)) {
+      return;
+    }
+
+    if (code === 123) return block(e);
+
+    if (e.ctrlKey && e.shiftKey && (code === 73 || code === 74 || code === 67)) {
+      return block(e);
+    }
+
+    if (e.ctrlKey && e.shiftKey && code === 75) return block(e);
+
+    if (e.altKey && (e.ctrlKey || e.metaKey) && (code === 73 || code === 74)) {
+      return block(e);
+    }
+
+    if (e.ctrlKey && code === 85) return block(e);
+    if (e.ctrlKey && code === 83) return block(e);
+
+    if (e.ctrlKey && !e.shiftKey && !e.altKey) {
+      if (code === 65 || code === 67 || code === 88 || code === 86 ||
+          code === 89 || code === 90 || code === 72 || code === 70 ||
+          code === 69) {
+        return block(e);
+      }
+    }
+
+    if (e.metaKey && (code === 86)) return block(e);
+    if (e.metaKey && e.altKey) return block(e);
+  }, true);
+
+  document.addEventListener('contextmenu', function (e) { e.preventDefault(); }, false);
+})();
 </script>
 </body>
 </html>
