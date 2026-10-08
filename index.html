@@ -724,7 +724,7 @@
     <kbd>F3</kbd> EmulatorJS menu ·
     <kbd>Ctrl+Shift+P</kbd> Toggle panel<br/>
     <b><i class="fa-solid fa-mobile-screen"></i>Touch:</b> On-screen D-Pad and buttons
-    appear automatically. Double-tap the canvas for fullscreen.<br/>
+    appear automatically.<br/>
     <b><i class="fa-solid fa-memory"></i>Device auto-detection:</b> the emulator
     probes your device (mobile vs desktop, GPU tier, RAM, refresh rate) and applies
     the optimal WebGL configuration automatically — conservative flags on mobile
@@ -744,22 +744,18 @@
 
 <script>
 /* ==========================================================================
-   HEX WEB EMULATOR — v9.1 (FPS overlay removed from game display)
+   HEX WEB EMULATOR — v9.2 (touch fullscreen removed)
    --------------------------------------------------------------------------
-   v9.1 changes:
-     • REMOVED the on-canvas FPS HUD entirely (the floating overlay that used
-       to sit in the top-right corner of the emulator shell). The main game
-       play display now shows only the game and the transient auto-tune badge.
-     • The live FPS value is now reported inside the Performance panel via a
-       new "FPS" badge, so users can still see it without cluttering the
-       emulator canvas.
-     • All FPS-related DOM refs, CSS, and the Ctrl+Shift+F hotkey were
-       removed. FramePacer still computes FPS internally for the badge and
-       for its own diagnostics — no telemetry was lost.
-     • Everything else from v9 is preserved: device-aware WebGL tuning,
-       mobile/desktop auto-detection, refresh-rate measurement, 120 Hz
-       screen-recording detection, three.js 3D shader, AudioSync watchdog,
-       GCGuard, generic boot retry, mobile-friendly layout.
+   v9.2 changes:
+     • REMOVED the double-tap-on-canvas → fullscreen touch handler
+       (bindDoubleTapFullscreen). Fullscreen is still available via the
+       dedicated "Fullscreen" toolbar button.
+     • Updated the touch help text to reflect the removed gesture.
+     • Everything else from v9.1 is preserved: on-canvas FPS HUD is gone,
+       live FPS is shown in the Performance panel FPS badge, device-aware
+       WebGL tuning, mobile/desktop auto-detection, refresh-rate
+       measurement, 120 Hz screen-recording detection, three.js 3D shader,
+       AudioSync watchdog, GCGuard, generic boot retry, mobile layout.
    ========================================================================== */
 (function () {
 'use strict';
@@ -3411,20 +3407,8 @@ btnStop.addEventListener('click', function () {
   });
 })();
 
-/* Double-tap on the emulator shell to toggle fullscreen (mobile-friendly) */
-(function bindDoubleTapFullscreen() {
-  const shell = $('emulator-shell');
-  let lastTap = 0;
-  shell.addEventListener('touchend', function () {
-    const now = Date.now();
-    if (now - lastTap < 300) {
-      lastTap = 0;
-      btnFull.click();
-    } else {
-      lastTap = now;
-    }
-  }, { passive: true });
-})();
+/* Note: double-tap-to-fullscreen touch gesture was removed in v9.2.
+   Fullscreen is available via the dedicated toolbar button. */
 
 /* Prevent pull-to-refresh inside the emulator shell */
 (function preventPullToRefresh() {
