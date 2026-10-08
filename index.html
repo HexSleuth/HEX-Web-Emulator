@@ -3,9 +3,12 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<meta name="theme-color" content="#0b0d12"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <title>HEX Web Emulator</title>
 
-<!-- Font Awesome 6 (Free) -->
 <link rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
       integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A=="
@@ -17,12 +20,19 @@
     --fg:#e8eef7; --mut:#8fa0b8; --acc:#4c8dff; --ok:#2fbf83; --err:#ff5d5d;
     --warn:#ffb020; --ram8:#7dff9f;
     --icon-size:13px;
+    --tap-min:38px;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{margin:0;padding:0;background:var(--bg);color:var(--fg);
     font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-    min-height:100%;overscroll-behavior:none}
-  #app{max-width:1100px;margin:0 auto;padding:12px;contain:layout style}
+    min-height:100%;overscroll-behavior:none;
+    -webkit-text-size-adjust:100%}
+  body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right);
+       padding-bottom:env(safe-area-inset-bottom)}
+  #app{max-width:1100px;margin:0 auto;padding:10px;contain:layout style}
+  @media(max-width:560px){
+    #app{padding:6px}
+  }
 
   i.fa-solid, i.fa-regular, i.fa-brands{
     font-size:var(--icon-size);line-height:1;display:inline-block;
@@ -46,12 +56,25 @@
   }
   .bar h1 .ram-chip.show{display:inline-flex;align-items:center;gap:4px}
   .bar h1 .ram-chip i{font-size:9px;color:var(--ram8)}
+  .bar h1 .dev-chip{
+    font-size:10px;padding:2px 8px;border-radius:10px;
+    background:rgba(76,141,255,.14);color:#9fc4ff;
+    border:1px solid rgba(76,141,255,.4);font-weight:700;letter-spacing:.3px;
+    margin-left:4px;display:inline-flex;align-items:center;gap:4px;
+  }
+  .bar h1 .dev-chip i{font-size:9px;color:#9fc4ff}
+  .bar h1 .dev-chip.mobile{
+    background:rgba(255,176,32,.14);color:var(--warn);
+    border-color:rgba(255,176,32,.4);
+  }
+  .bar h1 .dev-chip.mobile i{color:var(--warn)}
 
   button,label.btn{
     background:var(--panel2);color:var(--fg);border:1px solid var(--line);
     padding:8px 12px;border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;
     transition:background .1s,border-color .1s,transform .1s;
     user-select:none;display:inline-flex;align-items:center;gap:7px;white-space:nowrap;
+    min-height:var(--tap-min);
   }
   button:hover:not(:disabled),label.btn:hover{background:#26303f;border-color:#3a4860;transform:translateY(-1px)}
   button:hover:not(:disabled) i, label.btn:hover i{transform:scale(1.18)}
@@ -63,6 +86,12 @@
   button.danger:hover:not(:disabled){background:#4a252b;border-color:#6a323a}
   button.toggle[aria-pressed="true"]{background:var(--acc);border-color:var(--acc);color:#fff}
 
+  @media(max-width:560px){
+    button,label.btn{padding:9px 11px;font-size:12.5px;gap:6px;min-height:42px}
+    .bar{padding:8px;gap:6px}
+    .bar h1{font-size:13px;width:100%;margin-bottom:4px}
+  }
+
   /* ===================== SELECT / INPUT ===================== */
   select{
     background:var(--panel2);color:var(--fg);border:1px solid var(--line);
@@ -71,32 +100,50 @@
     background-image:linear-gradient(45deg,transparent 50%,var(--mut) 50%),
                      linear-gradient(135deg,var(--mut) 50%,transparent 50%);
     background-position:calc(100% - 14px) 50%,calc(100% - 9px) 50%;
-    background-size:5px 5px,5px 5px;background-repeat:no-repeat;transition:border-color .15s;
+    background-size:5px 5px,5px 5px;background-repeat:no-repeat;
+    transition:border-color .15s;min-height:var(--tap-min);
   }
   select:hover{border-color:#3a4860}
   .select-wrap{position:relative;display:inline-flex;align-items:center}
   .select-wrap > i{position:absolute;left:11px;pointer-events:none;color:var(--mut);font-size:12px}
   .select-wrap:hover > i{color:var(--acc)}
+  @media(max-width:560px){
+    select{font-size:12.5px;padding:8px 26px 8px 32px;min-height:42px}
+  }
 
   input[type=text]{
     flex:1 1 260px;min-width:180px;background:var(--panel2);color:var(--fg);
     border:1px solid var(--line);border-radius:9px;padding:8px 11px 8px 34px;
-    font-size:13px;outline:none;transition:border-color .15s;
+    font-size:13px;outline:none;transition:border-color .15s;min-height:var(--tap-min);
   }
   input[type=text]:focus{border-color:var(--acc)}
   .input-wrap{position:relative;display:flex;flex:1 1 260px;align-items:center}
   .input-wrap > i{position:absolute;left:12px;pointer-events:none;color:var(--mut);font-size:12px}
   .input-wrap:focus-within > i{color:var(--acc)}
+  @media(max-width:560px){
+    input[type=text]{font-size:13px;min-height:44px}
+    .input-wrap{flex:1 1 100%}
+  }
 
-  input[type=range]{width:100%;accent-color:var(--acc);cursor:pointer}
+  input[type=range]{width:100%;accent-color:var(--acc);cursor:pointer;height:24px}
+  @media(max-width:560px){
+    input[type=range]{height:32px}
+  }
 
   /* ===================== EMULATOR SHELL ===================== */
   #emulator-shell{
     position:relative;background:#000;border:1px solid var(--line);border-radius:12px;
     overflow:hidden;width:100%;aspect-ratio:4/3;
     contain:strict;transform:translateZ(0);will-change:transform;backface-visibility:hidden;
+    touch-action:none;
   }
-  #emulator-shell:fullscreen{border-radius:0;aspect-ratio:auto;height:100vh}
+  #emulator-shell:fullscreen{border-radius:0;aspect-ratio:auto;height:100vh;width:100vw}
+  @media(max-width:560px){
+    #emulator-shell{border-radius:8px}
+  }
+  @media(orientation:portrait) and (max-width:560px){
+    #emulator-shell{aspect-ratio:3/4}
+  }
   #game{width:100%;height:100%;display:flex;align-items:center;justify-content:center;
         contain:strict;transform:translateZ(0)}
   #game > *{max-width:100%;max-height:100%}
@@ -119,7 +166,7 @@
   }
   #overlay.hidden{display:none}
   #overlay h2{margin:0;font-size:17px;font-weight:700;
-              display:inline-flex;align-items:center;gap:9px}
+              display:inline-flex;align-items:center;gap:9px;flex-wrap:wrap;justify-content:center}
   #overlay h2 i{color:var(--acc);font-size:18px}
   #overlay p{margin:0;font-size:13px;color:var(--mut);max-width:520px;line-height:1.55}
   #overlay code{background:var(--panel2);padding:1px 6px;border-radius:4px;font-size:12px;
@@ -130,21 +177,13 @@
   #bar-progress{width:min(340px,80%);height:6px;background:#1d2431;border-radius:4px;
                 overflow:hidden;display:none}
   #bar-fill{height:100%;width:0%;background:var(--acc);transition:width .2s}
-
-  #fps-hud{
-    position:absolute;top:8px;right:8px;z-index:6;
-    background:rgba(6,8,12,.78);color:#7dff9f;
-    font:600 12px/1.4 ui-monospace,Menlo,Consolas,monospace;
-    padding:6px 10px;border-radius:7px;border:1px solid #2a3444;
-    pointer-events:none;display:none;min-width:110px;text-align:right;
-    transform:translateZ(0);will-change:transform;contain:strict;
+  @media(max-width:560px){
+    #overlay{padding:14px}
+    #overlay h2{font-size:15px}
+    #overlay p{font-size:12px}
   }
-  #fps-hud.show{display:block}
-  #fps-hud .row{display:flex;justify-content:space-between;gap:8px;align-items:center}
-  #fps-hud .lbl{color:var(--mut);font-weight:500;display:inline-flex;align-items:center;gap:5px}
-  #fps-hud .lbl i{font-size:10px;color:var(--mut)}
-  #fps-hud .warn{color:var(--warn)}
-  #fps-hud .bad{color:var(--err)}
+
+  /* FPS HUD removed — the display area now shows only the game + auto-tune badge */
 
   #auto-badge{
     position:absolute;top:8px;left:8px;z-index:6;
@@ -160,6 +199,9 @@
   #auto-badge .k{color:var(--acc);font-weight:700}
   #auto-badge .v{color:var(--mut);margin-left:2px}
   #auto-badge .ram-tag{color:var(--ram8);font-weight:700}
+  @media(max-width:560px){
+    #auto-badge{font-size:10px;max-width:75%;top:6px;left:6px;padding:5px 9px}
+  }
 
   /* ===================== STATUS ===================== */
   .status{font-size:12px;color:var(--mut);padding:8px 11px;background:var(--panel);
@@ -174,6 +216,11 @@
   .dot.load{background:var(--acc);animation:pulse 1s infinite}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
   .sep{color:#2a3444}
+  @media(max-width:560px){
+    .status{font-size:11px;padding:7px 10px;gap:7px}
+    .status .sep{display:none}
+    .status .stat{font-size:11px}
+  }
 
   .row{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
 
@@ -224,6 +271,10 @@
   .badge.info i{color:#9fc4ff}
   .badge.ram8{background:rgba(125,255,159,.13);border-color:rgba(125,255,159,.4);color:var(--ram8)}
   .badge.ram8 i{color:var(--ram8)}
+  @media(max-width:560px){
+    .perf-panel{padding:10px}
+    .badge{font-size:10px;padding:3px 8px}
+  }
 
   .device-banner{
     background:var(--panel2);border:1px solid var(--line);border-radius:9px;
@@ -244,7 +295,6 @@
   }
   .device-banner .ram8-note i{color:var(--ram8);font-size:10px}
 
-  /* Device override row */
   .device-override{
     display:flex;gap:8px;align-items:center;flex-wrap:wrap;
     padding:9px 12px;background:var(--panel2);border:1px solid var(--line);
@@ -261,6 +311,10 @@
     color:var(--mut)
   }
   .device-override .reset-override:hover{color:var(--fg);background:var(--panel)}
+  @media(max-width:560px){
+    .device-override{padding:8px 10px;gap:6px}
+    .device-override select{font-size:12px;padding:6px 24px 6px 28px}
+  }
 
   .presets{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;align-items:center}
   .presets button{padding:7px 12px;font-size:12px;gap:6px}
@@ -274,6 +328,9 @@
   .presets .auto-btn i{color:#9fc4ff}
   .presets .auto-btn[aria-pressed="true"]{background:var(--acc);border-color:var(--acc);color:#fff}
   .presets .auto-btn[aria-pressed="true"] i{color:#fff}
+  @media(max-width:560px){
+    .presets button{padding:8px 10px;font-size:11.5px;min-height:38px}
+  }
 
   .perf-grid{
     display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));
@@ -295,10 +352,8 @@
   .field select{width:100%;padding:6px 26px 6px 30px;font-size:12px}
   .field.auto-locked{opacity:.55;pointer-events:none}
   .field.auto-locked label > span:first-child i{color:var(--acc)}
-  /* RAM-powered fields */
   .field.ram-powered label > span:first-child i{color:var(--ram8)}
   .field.ram-powered .hint{color:var(--ram8);opacity:.75}
-  /* Screen-recording detected accent */
   .field.screenrec label > span:first-child i{color:#7dff9f}
   .field.screenrec .hint{color:#7dff9f;opacity:.85}
   .field .screenrec-chip{
@@ -313,6 +368,17 @@
   .field .screenrec-chip.show{display:inline-flex}
   .field .screenrec-chip i{font-size:9px;color:var(--ram8)}
 
+  .mobile-tip{
+    display:none;
+    background:rgba(255,176,32,.08);
+    border:1px solid rgba(255,176,32,.3);
+    color:#ffd58a;font-size:11.5px;
+    padding:8px 11px;border-radius:8px;margin-bottom:10px;
+    align-items:center;gap:8px;line-height:1.45;
+  }
+  .mobile-tip.show{display:flex}
+  .mobile-tip i{color:var(--warn);font-size:13px;flex:none}
+
   .keys{font-size:11.5px;color:var(--mut);line-height:1.9;margin-top:12px;
         background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
   .keys b{color:var(--fg)}
@@ -320,6 +386,9 @@
   .keys kbd{background:var(--panel2);border:1px solid var(--line);border-bottom-width:2px;
             border-radius:5px;padding:1px 6px;font-family:ui-monospace,Menlo,Consolas,monospace;
             font-size:11px;color:var(--fg)}
+  @media(max-width:560px){
+    .keys{font-size:11px;line-height:1.8}
+  }
 
   /* ===================== CORE CARDS ===================== */
   .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));
@@ -362,16 +431,14 @@
                    background:rgba(47,191,131,.15);color:#7dff9f;
                    border:1px solid rgba(47,191,131,.4);margin-left:4px;font-weight:700}
   .card .auto-pick i{font-size:9px;color:#7dff9f}
+  @media(max-width:560px){
+    .grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px}
+    .card{padding:8px 10px}
+  }
 
   .hidden{display:none!important}
   @media(max-width:560px){
-    .bar h1{font-size:13px}
-    .bar h1 i{font-size:13px}
-    .bar h1 .ram-chip{font-size:9px}
-    #overlay h2{font-size:15px}
-    #overlay p{font-size:12px}
     .perf-grid{grid-template-columns:1fr}
-    #auto-badge{font-size:10px;max-width:75%}
   }
 </style>
 </head>
@@ -382,6 +449,7 @@
   <div class="bar">
     <h1>
       <i class="fa-solid fa-gamepad"></i>HEX<span>Web</span>
+      <span class="dev-chip" id="dev-chip"><i class="fa-solid fa-mobile-screen"></i><span id="dev-chip-text">Mobile</span></span>
       <span class="ram-chip" id="ram-chip"><i class="fa-solid fa-memory"></i><span id="ram-chip-text">8 GB</span></span>
     </h1>
 
@@ -399,7 +467,6 @@
 
     <button id="btn-load" class="primary" disabled><i class="fa-solid fa-play"></i> Load</button>
     <button id="btn-perf" class="toggle" aria-pressed="true"><i class="fa-solid fa-bolt"></i> Performance</button>
-    <button id="btn-fps" class="toggle"><i class="fa-solid fa-chart-line"></i> FPS</button>
     <button id="btn-fullscreen" disabled><i class="fa-solid fa-expand"></i> Fullscreen</button>
     <button id="btn-reset" disabled><i class="fa-solid fa-rotate-right"></i> Reset</button>
     <button id="btn-stop" class="danger" disabled><i class="fa-solid fa-stop"></i> Stop</button>
@@ -409,10 +476,6 @@
   <div id="emulator-shell">
     <div id="game"></div>
     <div id="auto-badge"></div>
-    <div id="fps-hud">
-      <div class="row"><span class="lbl"><i class="fa-solid fa-gauge-high"></i>FPS</span><span id="hud-fps">—</span></div>
-      <div class="row"><span class="lbl"><i class="fa-solid fa-clock"></i>FT</span><span id="hud-ft">—</span></div>
-    </div>
     <div id="overlay">
       <div class="spinner" id="spin" style="display:none"></div>
       <h2><i class="fa-solid fa-gamepad"></i> <span id="ov-title-text">Retro Web Emulator</span></h2>
@@ -442,6 +505,7 @@
     <div class="input-wrap">
       <i class="fa-solid fa-link"></i>
       <input id="url-input" type="text" spellcheck="false"
+             inputmode="url" autocapitalize="off" autocorrect="off"
              placeholder="https://example.com/game.nes  (direct link to ROM)"/>
     </div>
     <button id="btn-load-url"><i class="fa-solid fa-cloud-arrow-down"></i> Load from URL</button>
@@ -465,7 +529,19 @@
         <span class="badge" id="bg-cores"><i class="fa-solid fa-microchip"></i><span>CPU: —</span></span>
         <span class="badge" id="bg-refresh"><i class="fa-solid fa-display"></i><span>Display: —</span></span>
         <span class="badge" id="bg-core"><i class="fa-solid fa-puzzle-piece"></i><span>Core: —</span></span>
+        <span class="badge" id="bg-audio"><i class="fa-solid fa-volume-high"></i><span>Audio: —</span></span>
+        <span class="badge" id="bg-pacing"><i class="fa-solid fa-stopwatch"></i><span>Pacing: —</span></span>
+        <span class="badge" id="bg-fps"><i class="fa-solid fa-gauge-high"></i><span>FPS: —</span></span>
+        <span class="badge" id="bg-webgl"><i class="fa-solid fa-bolt"></i><span>WebGL: —</span></span>
+        <span class="badge" id="bg-gpu"><i class="fa-solid fa-microchip"></i><span>GPU: —</span></span>
       </div>
+    </div>
+
+    <div class="mobile-tip" id="mobile-tip">
+      <i class="fa-solid fa-mobile-screen-button"></i>
+      <span><b>Mobile profile active</b> — WebGL tuned for battery &amp; thermals:
+      depth/stencil/antialias off, power preference balanced, texture size capped.
+      Rotate your device for widescreen.</span>
     </div>
 
     <div class="device-banner" id="device-banner">
@@ -515,7 +591,7 @@
           </span>
         </label>
         <input type="range" id="s-res" min="0.5" max="4" step="0.5" value="1">
-        <div class="hint">8 GB RAM unlocks up to 3× on light cores.</div>
+        <div class="hint" id="res-hint">8 GB RAM unlocks up to 3× on light cores.</div>
       </div>
 
       <div class="field" id="f-fps">
@@ -581,7 +657,7 @@
           <option value="webgl">Force WebGL</option>
           <option value="canvas">Force Canvas (2D)</option>
         </select>
-        <div class="hint">WebGL is dramatically faster.</div>
+        <div class="hint" id="render-hint">WebGL is dramatically faster.</div>
       </div>
 
       <div class="field" id="f-shader">
@@ -628,7 +704,7 @@
           <option value="off" selected>Off (native)</option>
           <option value="2x">2× (PSP/PS1)</option>
         </select>
-        <div class="hint">8 GB enables 2× textures on PSP/PS1.</div>
+        <div class="hint" id="upscale-hint">8 GB enables 2× textures on PSP/PS1.</div>
       </div>
 
     </div>
@@ -646,45 +722,592 @@
     <kbd>Enter</kbd> Start · <kbd>Shift</kbd> Select ·
     <kbd>Space</kbd> Fast-forward · <kbd>F1</kbd> Save · <kbd>F2</kbd> Load ·
     <kbd>F3</kbd> EmulatorJS menu ·
-    <kbd>Ctrl+Shift+P</kbd> Toggle panel · <kbd>Ctrl+Shift+F</kbd> FPS<br/>
-    <b><i class="fa-solid fa-memory"></i>8 GB RAM profile:</b> rewind, CRT shaders,
-    high audio buffer, 2× textures on PSP/PS1, and up to 3× resolution on light
-    cores are all enabled automatically. Use the <b>Device profile</b> dropdown if
-    your browser's RAM probe is inaccurate.
+    <kbd>Ctrl+Shift+P</kbd> Toggle panel<br/>
+    <b><i class="fa-solid fa-mobile-screen"></i>Touch:</b> On-screen D-Pad and buttons
+    appear automatically. Double-tap the canvas for fullscreen.<br/>
+    <b><i class="fa-solid fa-memory"></i>Device auto-detection:</b> the emulator
+    probes your device (mobile vs desktop, GPU tier, RAM, refresh rate) and applies
+    the optimal WebGL configuration automatically — conservative flags on mobile
+    for battery and thermal headroom, aggressive flags on desktop for maximum
+    throughput. Override any time with the <b>Device profile</b> dropdown.<br/>
+    <b><i class="fa-solid fa-bolt"></i>WebGL tuning:</b> WebGL context is created
+    with <code>antialias:false</code>, <code>depth:false</code>,
+    <code>stencil:false</code> and a device-appropriate
+    <code>powerPreference</code>. <code>UNPACK_ALIGNMENT=1</code> and
+    <code>NEAREST</code> filtering are applied only to the emulator's own canvas.<br/>
+    <b><i class="fa-solid fa-stopwatch"></i>Pacing &amp; audio:</b> a fixed-timestep
+    accumulator runs at the true NTSC NES rate of <b>60.0988 Hz</b>; the live FPS
+    is reported in the <b>FPS</b> badge inside the Performance panel.
   </div>
 
 </div>
 
 <script>
 /* ==========================================================================
-   RETRO WEB EMULATOR — 8 GB RAM OPTIMIZED EDITION
+   HEX WEB EMULATOR — v9.1 (FPS overlay removed from game display)
    --------------------------------------------------------------------------
-   v7 changes (Auto-detect + 120 FPS screen recording):
-     • FIXED refresh-rate detection:
-         - 220-frame sample window (was 90) with 10-frame warmup
-         - Robust median + p10 percentile analysis so high-refresh panels
-           (120/144/165/240) are correctly distinguished from 60 Hz panels
-           where rAF occasionally coalesces two frames.
-         - Snap table extended with 24/48/72/180/360.
-         - Explicit bias toward 100–144 Hz family so 120 Hz displays are
-           not misclassified as 60 Hz when the browser throttles rAF.
-     • NEW "Screen recording 120 Hz" detection:
-         - When the measured rate lands in the 100–144 Hz band, the UI shows
-           a green "Screen recording 120 Hz detected — FPS locked" chip under
-           the Target FPS slider, and the auto-tuner forces targetFps = 120.
-     • FIXED settings section sync:
-         - The Target FPS slider now reflects the auto-tuned value even when
-           the measured rate arrives asynchronously after boot.
-         - A dedicated #fps-hint element is updated live with the detected
-           rate + profile state.
-     • FIXED auto-tune 120 Hz branch so it is never overridden by the
-       mobile/heavy-core 60 Hz clamp unless the GPU is genuinely low-end.
-     • All previous v6 behaviour (three.js 3D shader, J2ME watchdog,
-       EmulatorJS canonical shader names, consolidated key blocker) kept
-       intact.
+   v9.1 changes:
+     • REMOVED the on-canvas FPS HUD entirely (the floating overlay that used
+       to sit in the top-right corner of the emulator shell). The main game
+       play display now shows only the game and the transient auto-tune badge.
+     • The live FPS value is now reported inside the Performance panel via a
+       new "FPS" badge, so users can still see it without cluttering the
+       emulator canvas.
+     • All FPS-related DOM refs, CSS, and the Ctrl+Shift+F hotkey were
+       removed. FramePacer still computes FPS internally for the badge and
+       for its own diagnostics — no telemetry was lost.
+     • Everything else from v9 is preserved: device-aware WebGL tuning,
+       mobile/desktop auto-detection, refresh-rate measurement, 120 Hz
+       screen-recording detection, three.js 3D shader, AudioSync watchdog,
+       GCGuard, generic boot retry, mobile-friendly layout.
    ========================================================================== */
 (function () {
 'use strict';
+
+/* ==========================================================================
+   0a. DEVICE CONTEXT
+   ========================================================================== */
+const DeviceContext = (function () {
+  const state = {
+    isMobile: false,
+    isTablet: false,
+    isDesktop: false,
+    isTouch: false,
+    isCoarsePointer: false,
+    isSmallViewport: false,
+    isPortrait: false,
+    battery: { supported: false, level: 1, charging: true },
+    saveData: false,
+    prefersReducedMotion: false
+  };
+
+  function reclassify() {
+    const ua = navigator.userAgent || '';
+    const uaMobile = /Android|iPhone|iPad|iPod|Mobile|BlackBerry|IEMobile|Opera Mini|Silk/i.test(ua);
+    const uaTablet = /iPad|Tablet|PlayBook|Silk/i.test(ua) ||
+                     (/Android/i.test(ua) && !/Mobile/i.test(ua));
+    const maxTouch = (navigator.maxTouchPoints || 0) > 0;
+    const ontouch = ('ontouchstart' in window);
+    const coarse = (typeof window.matchMedia === 'function') &&
+                   window.matchMedia('(pointer: coarse)').matches;
+    const smallVp = Math.min(window.innerWidth, window.innerHeight) < 600;
+    const portrait = window.innerHeight > window.innerWidth;
+
+    state.isTouch = maxTouch || ontouch;
+    state.isCoarsePointer = coarse;
+    state.isSmallViewport = smallVp;
+    state.isPortrait = portrait;
+    state.isTablet = uaTablet || (state.isTouch && !smallVp);
+    state.isMobile = (uaMobile && !uaTablet) || (state.isTouch && smallVp);
+    state.isDesktop = !state.isMobile && !state.isTablet;
+
+    if (typeof navigator.connection === 'object' && navigator.connection) {
+      state.saveData = !!navigator.connection.saveData;
+    }
+    if (typeof window.matchMedia === 'function') {
+      state.prefersReducedMotion =
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    }
+  }
+
+  async function probeBattery() {
+    if (typeof navigator.getBattery !== 'function') return;
+    try {
+      const b = await navigator.getBattery();
+      state.battery.supported = true;
+      state.battery.level = b.level;
+      state.battery.charging = b.charging;
+      b.addEventListener('levelchange', function () { state.battery.level = b.level; });
+      b.addEventListener('chargingchange', function () { state.battery.charging = b.charging; });
+    } catch (e) {}
+  }
+
+  function label() {
+    if (state.isMobile) return 'Mobile';
+    if (state.isTablet) return 'Tablet';
+    return 'Desktop';
+  }
+
+  function powerHint() {
+    if (!state.battery.supported) return 'unknown';
+    if (state.battery.charging) return 'charging';
+    if (state.battery.level < 0.15) return 'critical';
+    if (state.battery.level < 0.30) return 'low';
+    return 'ok';
+  }
+
+  function init() {
+    reclassify();
+    probeBattery();
+
+    let lastW = window.innerWidth;
+    let lastH = window.innerHeight;
+    window.addEventListener('resize', function () {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      const sizeChanged = (w !== lastW || h !== lastH);
+      const orientationChanged = (w > h) !== (lastW > lastH);
+      lastW = w; lastH = h;
+      if (sizeChanged) {
+        const prevMobile = state.isMobile;
+        const prevTablet = state.isTablet;
+        reclassify();
+        if (prevMobile !== state.isMobile || prevTablet !== state.isTablet) {
+          document.dispatchEvent(new CustomEvent('hexdevicechange', { detail: { reason: 'size' } }));
+        }
+        if (orientationChanged) {
+          document.dispatchEvent(new CustomEvent('hexorientationchange'));
+        }
+      }
+    });
+
+    if (typeof window.matchMedia === 'function') {
+      const mq = window.matchMedia('(pointer: coarse)');
+      if (typeof mq.addEventListener === 'function') {
+        mq.addEventListener('change', function () {
+          const prev = state.isCoarsePointer;
+          reclassify();
+          if (prev !== state.isCoarsePointer) {
+            document.dispatchEvent(new CustomEvent('hexdevicechange', { detail: { reason: 'pointer' } }));
+          }
+        });
+      }
+    }
+  }
+
+  return {
+    init: init,
+    state: state,
+    label: label,
+    powerHint: powerHint,
+    reclassify: reclassify,
+    get isMobile() { return state.isMobile; },
+    get isTablet() { return state.isTablet; },
+    get isDesktop() { return state.isDesktop; },
+    get isTouch() { return state.isTouch; },
+    get isCoarsePointer() { return state.isCoarsePointer; },
+    get isPortrait() { return state.isPortrait; },
+    get batteryLevel() { return state.battery.level; },
+    get batteryCharging() { return state.battery.charging; },
+    get powerHint() { return powerHint(); }
+  };
+})();
+DeviceContext.init();
+
+/* ==========================================================================
+   0b. WebGLTuner
+   ========================================================================== */
+const WebGLTuner = (function () {
+  const state = {
+    forceNearest: true,
+    patchedGetContext: false,
+    patchedTexParam: false,
+    contextsTuned: 0,
+    texturesForced: 0,
+    lastPolicy: 'desktop-high',
+    policy: null
+  };
+
+  function computePolicy() {
+    const mobile = DeviceContext.isMobile;
+    const tablet = DeviceContext.isTablet;
+    const power = DeviceContext.powerHint;
+    const saveData = DeviceContext.state.saveData;
+
+    let powerPreference = 'high-performance';
+    let failCaveat = false;
+
+    if (mobile || tablet) {
+      if (power === 'critical' && !DeviceContext.batteryCharging) {
+        powerPreference = 'low-power';
+      } else if (power === 'low' && !DeviceContext.batteryCharging) {
+        powerPreference = 'default';
+      } else {
+        powerPreference = 'default';
+      }
+      if (saveData) powerPreference = 'low-power';
+    }
+
+    return {
+      antialias: false,
+      depth: false,
+      stencil: false,
+      powerPreference: powerPreference,
+      failIfMajorPerformanceCaveat: failCaveat
+    };
+  }
+
+  function applyPolicy() {
+    state.policy = computePolicy();
+    state.lastPolicy = DeviceContext.label() + ' · ' + state.policy.powerPreference;
+  }
+
+  function patchGetContext() {
+    if (state.patchedGetContext) return;
+    state.patchedGetContext = true;
+    applyPolicy();
+
+    const orig = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function (type, attrs) {
+      if (type === 'webgl' || type === 'webgl2' || type === 'experimental-webgl') {
+        applyPolicy();
+        const pol = state.policy;
+        const merged = {};
+        if (pol.antialias !== undefined)     merged.antialias = pol.antialias;
+        if (pol.depth !== undefined)         merged.depth = pol.depth;
+        if (pol.stencil !== undefined)       merged.stencil = pol.stencil;
+        if (pol.powerPreference !== undefined) merged.powerPreference = pol.powerPreference;
+        if (pol.failIfMajorPerformanceCaveat !== undefined)
+          merged.failIfMajorPerformanceCaveat = pol.failIfMajorPerformanceCaveat;
+
+        if (attrs && typeof attrs === 'object') {
+          for (const k in attrs) {
+            if (attrs[k] !== undefined) merged[k] = attrs[k];
+          }
+        }
+        const ctx = orig.call(this, type, merged);
+        if (ctx) tuneContext(ctx);
+        return ctx;
+      }
+      return orig.apply(this, arguments);
+    };
+    patchTexParameter();
+  }
+
+  function tuneContext(gl) {
+    if (!gl || gl.__hexTuned) return;
+    try {
+      gl.__hexTuned = true;
+      gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+      state.contextsTuned++;
+    } catch (e) {}
+  }
+
+  function canvasBelongsToGame(cv) {
+    if (!cv) return false;
+    try {
+      if (cv.closest) return !!cv.closest('#game');
+      let p = cv.parentElement;
+      while (p) {
+        if (p.id === 'game') return true;
+        p = p.parentElement;
+      }
+    } catch (e) {}
+    return false;
+  }
+
+  function patchTexParameter() {
+    if (state.patchedTexParam) return;
+    state.patchedTexParam = true;
+    const protos = [];
+    if (window.WebGLRenderingContext) protos.push(window.WebGLRenderingContext.prototype);
+    if (window.WebGL2RenderingContext) protos.push(window.WebGL2RenderingContext.prototype);
+    protos.forEach(function (proto) {
+      if (proto.__hexTexParamPatched) return;
+      proto.__hexTexParamPatched = true;
+      const orig = proto.texParameteri;
+      proto.texParameteri = function (target, pname, param) {
+        if (state.forceNearest &&
+            target === this.TEXTURE_2D &&
+            (pname === this.TEXTURE_MIN_FILTER || pname === this.TEXTURE_MAG_FILTER) &&
+            canvasBelongsToGame(this.canvas)) {
+          if (param === this.LINEAR ||
+              param === this.LINEAR_MIPMAP_LINEAR ||
+              param === this.LINEAR_MIPMAP_NEAREST) {
+            param = this.NEAREST;
+            state.texturesForced++;
+          }
+        }
+        return orig.call(this, target, pname, param);
+      };
+    });
+  }
+
+  function refreshPolicy() { applyPolicy(); }
+
+  return {
+    patchGetContext: patchGetContext,
+    tuneContext: tuneContext,
+    refreshPolicy: refreshPolicy,
+    setForceNearest: function (v) { state.forceNearest = !!v; },
+    get forceNearest() { return state.forceNearest; },
+    get stats() { return state; },
+    get policy() { return state.policy; },
+    get lastPolicyLabel() { return state.lastPolicy; }
+  };
+})();
+
+WebGLTuner.patchGetContext();
+
+/* ==========================================================================
+   0c. GCGuard
+   ========================================================================== */
+const GCGuard = (function () {
+  const SCRATCH_F32_64 = new Float32Array(64);
+  const SCRATCH_F64_64 = new Float64Array(64);
+
+  function medianF32Ring(ring, count) {
+    const n = Math.min(count, SCRATCH_F32_64.length);
+    for (let i = 0; i < n; i++) SCRATCH_F32_64[i] = ring[i];
+    for (let i = 1; i < n; i++) {
+      const v = SCRATCH_F32_64[i];
+      let j = i - 1;
+      while (j >= 0 && SCRATCH_F32_64[j] > v) {
+        SCRATCH_F32_64[j + 1] = SCRATCH_F32_64[j];
+        j--;
+      }
+      SCRATCH_F32_64[j + 1] = v;
+    }
+    return SCRATCH_F32_64[(n - 1) >> 1];
+  }
+
+  function medianF64Ring(ring, count) {
+    const n = Math.min(count, SCRATCH_F64_64.length);
+    for (let i = 0; i < n; i++) SCRATCH_F64_64[i] = ring[i];
+    for (let i = 1; i < n; i++) {
+      const v = SCRATCH_F64_64[i];
+      let j = i - 1;
+      while (j >= 0 && SCRATCH_F64_64[j] > v) {
+        SCRATCH_F64_64[j + 1] = SCRATCH_F64_64[j];
+        j--;
+      }
+      SCRATCH_F64_64[j + 1] = v;
+    }
+    return SCRATCH_F64_64[(n - 1) >> 1];
+  }
+
+  return {
+    medianF32Ring: medianF32Ring,
+    medianF64Ring: medianF64Ring,
+    scratchF32_64: SCRATCH_F32_64,
+    scratchF64_64: SCRATCH_F64_64
+  };
+})();
+
+/* ==========================================================================
+   0d. FramePacer
+   ========================================================================== */
+const FramePacer = (function () {
+  const NES_FPS = 60.0988;
+  const NES_FRAME_TIME = 1000 / NES_FPS;
+  const MAX_DELTA_MS = 100;
+  const MAX_CATCHUP = 4;
+
+  let rafId = 0;
+  let last = 0;
+  let acc = 0;
+  let running = false;
+  const subscribers = [];
+
+  const FPS_WINDOW = 32;
+  const fpsTimes = new Float64Array(FPS_WINDOW);
+  let fpsIdx = 0;
+  let fpsCount = 0;
+
+  const stats = {
+    fps: 0,
+    frameTimeMs: NES_FRAME_TIME,
+    accumulator: 0,
+    dropped: 0,
+    ticks: 0,
+    skipRequests: 0
+  };
+
+  function start() {
+    if (running) return;
+    running = true;
+    last = 0;
+    acc = 0;
+    rafId = requestAnimationFrame(loop);
+  }
+
+  function stop() {
+    running = false;
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = 0;
+    fpsIdx = 0;
+    fpsCount = 0;
+  }
+
+  function requestSkip(n) { stats.skipRequests += (n || 1); }
+
+  function loop(now) {
+    if (!running) return;
+    rafId = requestAnimationFrame(loop);
+
+    if (!last) { last = now; return; }
+    let delta = now - last;
+    last = now;
+    if (delta > MAX_DELTA_MS) delta = MAX_DELTA_MS;
+    if (delta < 0) delta = 0;
+
+    acc += delta;
+
+    if (stats.skipRequests > 0 && acc >= NES_FRAME_TIME) {
+      acc -= NES_FRAME_TIME;
+      stats.skipRequests--;
+    }
+
+    let ticks = 0;
+    while (acc >= NES_FRAME_TIME && ticks < MAX_CATCHUP) {
+      acc -= NES_FRAME_TIME;
+      ticks++;
+    }
+    if (acc >= NES_FRAME_TIME) {
+      acc = 0;
+      stats.dropped++;
+    }
+    stats.ticks += ticks;
+    stats.accumulator = acc;
+
+    fpsTimes[fpsIdx] = now;
+    fpsIdx = (fpsIdx + 1) % FPS_WINDOW;
+    if (fpsCount < FPS_WINDOW) fpsCount++;
+    if (fpsCount >= 2) {
+      const oldest = fpsTimes[(fpsIdx - fpsCount + FPS_WINDOW) % FPS_WINDOW];
+      const newest = fpsTimes[(fpsIdx - 1 + FPS_WINDOW) % FPS_WINDOW];
+      const span = newest - oldest;
+      if (span > 0) stats.fps = ((fpsCount - 1) * 1000) / span;
+    }
+
+    for (let i = 0; i < subscribers.length; i++) {
+      try { subscribers[i](now, delta, ticks); } catch (e) {}
+    }
+  }
+
+  function subscribe(fn) {
+    subscribers.push(fn);
+    return function unsubscribe() {
+      const i = subscribers.indexOf(fn);
+      if (i >= 0) subscribers.splice(i, 1);
+    };
+  }
+
+  return {
+    start: start,
+    stop: stop,
+    subscribe: subscribe,
+    requestSkip: requestSkip,
+    stats: stats,
+    NES_FPS: NES_FPS,
+    NES_FRAME_TIME: NES_FRAME_TIME
+  };
+})();
+
+/* ==========================================================================
+   0e. AudioSync
+   ========================================================================== */
+const AudioSync = (function () {
+  const MAX_DEVIATION = 0.03;
+  const WATCHDOG_MS = 250;
+
+  const state = {
+    ctx: null,
+    lastWall: 0,
+    lastAudio: 0,
+    driftRatio: 1,
+    status: 'idle',
+    intervalId: 0,
+    running: false,
+    skipRequests: 0,
+    samples: new Float32Array(32),
+    sampleIdx: 0,
+    sampleCount: 0,
+    patched: false
+  };
+
+  function patchAudioContext() {
+    if (state.patched) return;
+    const OrigAC = window.AudioContext || window.webkitAudioContext;
+    if (!OrigAC) return;
+    state.patched = true;
+
+    function HexAC() {
+      const ctx = new OrigAC(...arguments);
+      registerContext(ctx);
+      return ctx;
+    }
+    HexAC.prototype = OrigAC.prototype;
+    HexAC.__hexWrapped = true;
+    HexAC.__orig = OrigAC;
+
+    try {
+      window.AudioContext = HexAC;
+      if (window.webkitAudioContext) window.webkitAudioContext = HexAC;
+    } catch (e) {}
+  }
+
+  function registerContext(ctx) {
+    if (state.ctx && state.ctx !== ctx) return;
+    state.ctx = ctx;
+    start();
+  }
+
+  function start() {
+    if (state.running) return;
+    if (!state.ctx) return;
+    state.running = true;
+    state.lastWall = performance.now();
+    state.lastAudio = state.ctx.currentTime;
+    state.intervalId = setInterval(tick, WATCHDOG_MS);
+  }
+
+  function stop() {
+    if (state.intervalId) clearInterval(state.intervalId);
+    state.intervalId = 0;
+    state.running = false;
+    state.ctx = null;
+    state.status = 'idle';
+    state.driftRatio = 1;
+    state.sampleIdx = 0;
+    state.sampleCount = 0;
+  }
+
+  function tick() {
+    if (!state.ctx) return;
+    const nowWall = performance.now();
+    const nowAudio = state.ctx.currentTime;
+    const dWall = (nowWall - state.lastWall) / 1000;
+    if (dWall < 0.05) return;
+
+    const dAudio = nowAudio - state.lastAudio;
+    state.lastWall = nowWall;
+    state.lastAudio = nowAudio;
+
+    const ratio = dWall > 0 ? dAudio / dWall : 1;
+
+    state.samples[state.sampleIdx] = ratio;
+    state.sampleIdx = (state.sampleIdx + 1) % state.samples.length;
+    if (state.sampleCount < state.samples.length) state.sampleCount++;
+
+    const median = GCGuard.medianF32Ring(state.samples, state.sampleCount);
+    state.driftRatio = isFinite(median) && median > 0 ? median : 1;
+
+    const dev = Math.abs(1 - state.driftRatio);
+    if (dev > MAX_DEVIATION) {
+      state.status = 'drift';
+      if (state.driftRatio < 1) {
+        state.skipRequests++;
+        FramePacer.requestSkip(1);
+      }
+    } else {
+      state.status = 'locked';
+    }
+  }
+
+  return {
+    patchAudioContext: patchAudioContext,
+    registerContext: registerContext,
+    start: start,
+    stop: stop,
+    get status() { return state.status; },
+    get driftRatio() { return state.driftRatio; },
+    get skipRequests() { return state.skipRequests; },
+    get stats() { return state; }
+  };
+})();
+
+AudioSync.patchAudioContext();
 
 /* ==========================================================================
    1. CORE REGISTRY
@@ -744,7 +1367,7 @@ const CORES = [
 ];
 
 const EJS_CDN   = 'https://cdn.emulatorjs.org/stable/data/';
-const LS_KEY    = 'retro-web-settings-v4-8gb';
+const LS_KEY    = 'retro-web-settings-v5-mobile';
 const THREE_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
 
 /* ==========================================================================
@@ -763,9 +1386,7 @@ function normalizeUrl(url) {
   url = String(url).trim();
 
   let m = url.match(/^https?:\/\/github\.com\/([^\/]+)\/([^\/]+)\/(?:blob|raw)\/(.+)$/i);
-  if (m) {
-    return 'https://raw.githubusercontent.com/' + m[1] + '/' + m[2] + '/' + m[3];
-  }
+  if (m) return 'https://raw.githubusercontent.com/' + m[1] + '/' + m[2] + '/' + m[3];
 
   m = url.match(/^https?:\/\/raw\.githubusercontent\.com\/(.+)$/i);
   if (m) return url;
@@ -774,14 +1395,11 @@ function normalizeUrl(url) {
   if (m) return url;
 
   m = url.match(/^https?:\/\/gitlab\.com\/(.+?)\/-\/blob\/(.+)$/i);
-  if (m) {
-    return 'https://gitlab.com/' + m[1] + '/-/raw/' + m[2];
-  }
+  if (m) return 'https://gitlab.com/' + m[1] + '/-/raw/' + m[2];
 
   if (/dropbox\.com/i.test(url) && /[?&]dl=0/.test(url)) {
     url = url.replace(/([?&])dl=0/, '$1dl=1');
   }
-
   return url;
 }
 
@@ -808,13 +1426,14 @@ const DEVICE = (function probe() {
     cores: navigator.hardwareConcurrency || 2,
     webgl:false, webgl2:false, renderer:'unknown',
     threads:false, mobile:false,
-    touch: ('ontouchstart' in window) || navigator.maxTouchPoints > 0,
+    touch: DeviceContext.isTouch,
     highDpi: (window.devicePixelRatio || 1) >= 2,
     refreshRate: 60,
     refreshRateRaw: 60,
     refreshRateConfidence: 0,
     ramSource: 'estimate',
-    screenRecording: false
+    screenRecording: false,
+    powerPreference: 'high-performance'
   };
 
   try {
@@ -838,19 +1457,26 @@ const DEVICE = (function probe() {
                (self.crossOriginIsolated === true ||
                 (typeof window.crossOriginIsolated !== 'undefined' && window.crossOriginIsolated)));
 
-  const ua = navigator.userAgent || '';
-  d.mobile = /Android|iPhone|iPad|iPod|Mobile|Tablet|Silk/i.test(ua) ||
-             (navigator.maxTouchPoints > 1 && window.innerWidth < 900);
+  d.mobile = DeviceContext.isMobile || DeviceContext.isTablet;
 
   if (typeof navigator.deviceMemory === 'number') {
     d.ram = navigator.deviceMemory;
     d.ramSource = 'deviceMemory';
   } else {
-    d.ram = 8;
-    d.ramSource = 'estimate';
+    if (DeviceContext.isMobile) {
+      d.ram = (navigator.hardwareConcurrency || 2) >= 6 ? 4 : 2;
+      d.ramSource = 'mobile-estimate';
+    } else if (DeviceContext.isTablet) {
+      d.ram = 4;
+      d.ramSource = 'tablet-estimate';
+    } else {
+      d.ram = 8;
+      d.ramSource = 'estimate';
+    }
   }
 
   classifyDevice(d);
+  d.powerPreference = WebGLTuner.stats.policy.powerPreference;
   return d;
 })();
 
@@ -891,20 +1517,7 @@ function classifyDevice(d) {
 }
 
 /* ==========================================================================
-   2b. REFRESH-RATE MEASUREMENT  (120 Hz / screen-recording aware)
-   --------------------------------------------------------------------------
-   Strategy:
-     1. Sample ~220 rAF frame deltas (after a 10-frame warmup).
-     2. Discard the worst 15 % on each tail (outliers).
-     3. Take the median -> baseline Hz.
-     4. Also take the 10th percentile -> fast-tail Hz.  On 120 Hz panels
-        where rAF occasionally coalesces two frames, the median sits at
-        60 Hz but p10 reveals the true 120 Hz.
-     5. If p10 >= 1.6 * median AND p10 >= 90 Hz, prefer p10.
-     6. Snap to the nearest common rate with a mild bias toward the
-        100–144 Hz family so 120 Hz is never mis-snapped to 60 Hz.
-     7. Store both the raw measured Hz (refreshRateRaw) and the snapped
-        Hz (refreshRate), plus a 0–1 confidence score.
+   2b. REFRESH-RATE MEASUREMENT
    ========================================================================== */
 const COMMON_RATES = [24, 30, 48, 50, 60, 72, 75, 90, 100, 120, 144, 165, 180, 240, 360];
 
@@ -912,23 +1525,19 @@ function measureRefreshRate(callback) {
   const samples = [];
   let last = 0;
   let count = 0;
-  const TARGET = 220;
-  let warmup = 10;
+  const TARGET = DeviceContext.isMobile ? 120 : 220;
+  let warmup = 8;
 
   function tick(now) {
     if (last !== 0 && warmup <= 0) {
       const dt = now - last;
-      /* Keep deltas that correspond to 4 Hz..250 Hz */
       if (dt > 4 && dt < 250) samples.push(dt);
     }
     if (warmup > 0) warmup--;
     last = now;
     count++;
-    if (count < TARGET) {
-      requestAnimationFrame(tick);
-    } else {
-      finish();
-    }
+    if (count < TARGET) requestAnimationFrame(tick);
+    else finish();
   }
 
   function finish() {
@@ -936,31 +1545,22 @@ function measureRefreshRate(callback) {
     let confidence = 0;
 
     if (samples.length >= 30) {
-      /* Sort ascending */
       samples.sort(function (a, b) { return a - b; });
-
-      /* Trim 15 % off each tail */
       const trim = Math.floor(samples.length * 0.15);
       const trimmed = samples.slice(trim, samples.length - trim);
       const median = trimmed[Math.floor(trimmed.length / 2)] ||
                      samples[Math.floor(samples.length / 2)];
       const medianHz = 1000 / median;
 
-      /* Fast-tail (10th percentile) — reveals 120 Hz even when the median
-         is polluted by coalesced frames. */
       const p10 = trimmed[Math.floor(trimmed.length * 0.10)] || trimmed[0];
       const p10Hz = 1000 / p10;
 
-      /* Slow-tail (90th percentile) — reveals 30 Hz cap on low-power mode */
       const p90 = trimmed[Math.floor(trimmed.length * 0.90)] ||
                   trimmed[trimmed.length - 1];
       const p90Hz = 1000 / p90;
 
       hz = medianHz;
 
-      /* Detect 2× coalescing: median ~60 Hz but p10 ~120 Hz.
-         This is the classic signature of a 120 Hz display whose rAF
-         is occasionally being throttled to 60 Hz by the compositor. */
       if (p10Hz >= medianHz * 1.55 && p10Hz >= 90) {
         hz = p10Hz;
         confidence = 0.85;
@@ -968,8 +1568,6 @@ function measureRefreshRate(callback) {
         hz = (medianHz + p10Hz) / 2;
         confidence = 0.65;
       } else {
-        /* Normal case — median is trustworthy.  Confidence scaled by how
-           tightly the samples cluster around the median. */
         const spread = p90Hz > 0 ? medianHz / p90Hz : 1;
         confidence = Math.max(0.4, Math.min(0.99, 1 - Math.abs(spread - 1)));
       }
@@ -977,27 +1575,18 @@ function measureRefreshRate(callback) {
 
     DEVICE.refreshRateRaw = hz;
 
-    /* Snap to nearest common rate with a 100–144 Hz family bias. */
     let best = 60, bestDiff = Infinity;
     for (let i = 0; i < COMMON_RATES.length; i++) {
       const r = COMMON_RATES[i];
       let d = Math.abs(r - hz);
-      /* Bias toward the 100–144 Hz window so 120 Hz is preferred over
-         60 Hz when the raw measure is 95–115 Hz. */
       if (r >= 100 && r <= 144) d *= 0.75;
-      /* Also bias toward 120 specifically if we're in the 110–130 range */
       if (r === 120 && hz >= 110 && hz <= 130) d *= 0.6;
       if (d < bestDiff) { bestDiff = d; best = r; }
     }
-    if (bestDiff > 25) {
-      best = Math.max(24, Math.min(360, Math.round(hz)));
-    }
+    if (bestDiff > 25) best = Math.max(24, Math.min(360, Math.round(hz)));
 
     DEVICE.refreshRate = best;
     DEVICE.refreshRateConfidence = confidence;
-
-    /* Screen-recording flag: 100–144 Hz band means the user is very
-       likely recording at 120 FPS. */
     DEVICE.screenRecording = (best >= 100 && best <= 144);
 
     if (typeof callback === 'function') callback(best);
@@ -1007,17 +1596,22 @@ function measureRefreshRate(callback) {
 }
 
 /* ==========================================================================
-   3. SETTINGS
+   3. SETTINGS — mobile-aware defaults
+   --------------------------------------------------------------------------
+   showFps no longer controls a floating overlay — it is retained only for
+   backward compatibility with existing localStorage entries. The live FPS
+   is now always shown inside the Performance panel via the FPS badge.
    ========================================================================== */
 const DEFAULT_SETTINGS = {
   preset: 'auto',
   resolution: 1.0, targetFps: 60, frameSkip: 'auto',
   audio: 'medium', renderer: 'auto', shader: 'off',
   rewind: 'off', upscale: 'off',
-  showFps: false, showPerf: true,
+  showFps: false,       /* legacy: no longer used */
+  showPerf: true,
   deviceOverride: 'auto',
   threefxIntensity: 1.0,
-  screenRecordingLock: true,   /* honour 100–144 Hz detection */
+  screenRecordingLock: true,
   autoFields: { resolution:false, targetFps:false, frameSkip:false,
                 audio:false, renderer:false, shader:false, rewind:false, upscale:false }
 };
@@ -1069,12 +1663,13 @@ const PRESETS = {
 };
 
 /* ==========================================================================
-   5. AUTO-TUNE  (screen-recording aware)
+   5. AUTO-TUNE
    ========================================================================== */
 function autoTune(consoleWeight) {
   const ramHigh  = DEVICE.ramTier === '8-15' || DEVICE.ramTier === '16+';
   const ramUltra = DEVICE.ramTier === '16+';
   const rr       = DEVICE.refreshRate || 60;
+  const power    = DeviceContext.powerHint;
 
   let base;
   switch (DEVICE.deviceTier) {
@@ -1093,7 +1688,7 @@ function autoTune(consoleWeight) {
       break;
     case 'mobile-high':
       base = {
-        resolution: 1.0, targetFps: 60, frameSkip:'auto', audio:'medium',
+        resolution: 1.0, targetFps: 60, frameSkip:'auto', audio:'low',
         renderer:'webgl', shader:'off', rewind:'off', upscale:'off'
       };
       break;
@@ -1103,26 +1698,37 @@ function autoTune(consoleWeight) {
         renderer:'webgl', shader:'off', rewind:'off', upscale:'off'
       };
       break;
-    default: /* laptop-low */
+    default:
       base = {
         resolution: 1.0, targetFps: 60, frameSkip:'auto', audio:'medium',
         renderer:'auto',  shader:'off', rewind:'off', upscale:'off'
       };
   }
 
-  /* GPU caps */
+  if (DeviceContext.isMobile || DeviceContext.isTablet) {
+    base.audio = 'low';
+    if (base.renderer === 'auto') base.renderer = 'webgl';
+    if (consoleWeight === 'heavy') {
+      base.resolution = Math.min(base.resolution, 1.0);
+      base.rewind = 'off';
+      base.upscale = 'off';
+    }
+    if (power === 'critical' || power === 'low') {
+      base.targetFps = Math.min(base.targetFps, 60);
+    }
+  }
+
   if (DEVICE.gpuTier === 'low') {
     base.resolution = Math.min(base.resolution, 1.0);
-    base.renderer = 'canvas';
+    if (!DeviceContext.isMobile) base.renderer = 'canvas';
     base.shader = 'off';
     base.upscale = 'off';
     base.rewind = 'off';
   } else if (DEVICE.gpuTier === 'mid') {
-    base.resolution = Math.min(base.resolution, 2.0);
+    base.resolution = Math.min(base.resolution, DeviceContext.isMobile ? 1.0 : 2.0);
   }
   if (!DEVICE.webgl) base.renderer = 'canvas';
 
-  /* Console weight */
   if (consoleWeight === 'heavy') {
     if (DEVICE.gpuTier === 'high' && DEVICE.deviceTier === 'desktop-high') {
       base.resolution = ramUltra ? 3.0 : 2.0;
@@ -1151,7 +1757,6 @@ function autoTune(consoleWeight) {
       base.upscale = 'off';
       base.rewind = 'off';
     }
-
   } else if (consoleWeight === 'medium') {
     if (DEVICE.deviceTier === 'mobile-low' || DEVICE.gpuTier === 'low') {
       base.resolution = 1.0;
@@ -1163,7 +1768,6 @@ function autoTune(consoleWeight) {
       base.rewind = 'on';
       base.audio = 'high';
     }
-
   } else {
     if (DEVICE.gpuTier === 'high' && !DEVICE.mobile) {
       base.resolution = ramHigh ? 3.0 : 2.0;
@@ -1179,9 +1783,6 @@ function autoTune(consoleWeight) {
     }
   }
 
-  /* ---------------------------------------------------------------------
-     Refresh-rate match — screen-recording aware.
-     --------------------------------------------------------------------- */
   if      (rr >= 360) base.targetFps = 360;
   else if (rr >= 240) base.targetFps = 240;
   else if (rr >= 180) base.targetFps = 180;
@@ -1197,17 +1798,12 @@ function autoTune(consoleWeight) {
   else if (rr >= 30)  base.targetFps = 30;
   else                base.targetFps = Math.max(24, rr);
 
-  /* Apply 120 Hz screen-recording lock when the user is recording. */
   if (S.screenRecordingLock && DEVICE.screenRecording && base.targetFps < 120) {
     base.targetFps = 120;
   }
 
-  /* Only clamp to 60 Hz on genuinely low-end mobile / heavy cores.
-     120 Hz is preserved on capable hardware even for heavy cores. */
   const hardClamp60 = (consoleWeight === 'heavy' && DEVICE.mobile && DEVICE.gpuTier === 'low');
-  if (hardClamp60 && base.targetFps > 60) {
-    base.targetFps = 60;
-  }
+  if (hardClamp60 && base.targetFps > 60) base.targetFps = 60;
   if (consoleWeight === 'heavy' && DEVICE.gpuTier === 'low' && !DEVICE.mobile) {
     if (base.targetFps > 60) base.targetFps = 60;
   }
@@ -1254,7 +1850,6 @@ const btnLoad      = $('btn-load');
 const btnLoadUrl   = $('btn-load-url');
 const btnLoadDef   = $('btn-load-default');
 const btnPerf      = $('btn-perf');
-const btnFps       = $('btn-fps');
 const btnFull      = $('btn-fullscreen');
 const btnReset     = $('btn-reset');
 const btnStop      = $('btn-stop');
@@ -1273,13 +1868,13 @@ const stPerf       = $('st-perf');
 const coreCardsEl  = $('core-cards');
 const perfPanel    = $('perf-panel');
 const presetRow    = $('preset-row');
-const fpsHud       = $('fps-hud');
-const hudFps       = $('hud-fps');
-const hudFt        = $('hud-ft');
 const autoBadge    = $('auto-badge');
 const deviceText   = $('device-text');
 const ramChip      = $('ram-chip');
 const ramChipText  = $('ram-chip-text');
+const devChip      = $('dev-chip');
+const devChipText  = $('dev-chip-text');
+const mobileTip    = $('mobile-tip');
 const deviceOverrideSelect = $('device-override-select');
 const btnResetOverride     = $('btn-reset-override');
 
@@ -1302,13 +1897,19 @@ const autoRewind  = $('auto-rewind'), fRewind  = $('f-rewind');
 const autoUpscale = $('auto-upscale'),fUpscale = $('f-upscale');
 
 const fpsHint      = $('fps-hint');
+const resHint      = $('res-hint');
+const renderHint   = $('render-hint');
+const rewindHint   = $('rewind-hint');
+const upscaleHint  = $('upscale-hint');
 const screenrecChip= $('screenrec-chip');
 const screenrecHz  = $('screenrec-hz');
 
 const bgRender  = $('bg-render'),  bgThreads = $('bg-threads');
 const bgDevice  = $('bg-device'),  bgMem     = $('bg-mem');
 const bgCores   = $('bg-cores'),   bgRefresh = $('bg-refresh');
-const bgCore    = $('bg-core');
+const bgCore    = $('bg-core'),    bgAudio   = $('bg-audio');
+const bgPacing  = $('bg-pacing'),  bgWebGL   = $('bg-webgl');
+const bgGpu     = $('bg-gpu'),     bgFps     = $('bg-fps');
 
 /* ==========================================================================
    8. STATE
@@ -1317,11 +1918,13 @@ let currentFile = null, currentUrl = '', currentCoreId = '';
 let currentGameName = '', emulatorBooted = false;
 let currentBlobUrl = null;
 let currentSourceUrl = '';
-let fpsRafId = 0, lastFrameTime = 0, framesInWindow = 0, windowStart = 0, currentFps = 0;
+let currentFps = 0;
 let autoBadgeTimer = 0;
 let bootWatchdog = 0;
 let bootAttempt = 0;
 let allowRetry = false;
+let fpsUnsubscribe = null;
+let lastBadgeUpdate = 0;
 
 function setBadge(el, text, cls) {
   if (!el) return;
@@ -1394,6 +1997,20 @@ function renderDeviceInfo() {
   }[DEVICE.deviceTier] || DEVICE.deviceTier;
 
   const gpuLabel = { high:'High', mid:'Mid', low:'Low' }[DEVICE.gpuTier];
+  const devLabel = DeviceContext.label();
+
+  if (devChip) {
+    devChip.classList.toggle('mobile', DeviceContext.isMobile || DeviceContext.isTablet);
+    const icon = devChip.querySelector('i');
+    if (icon) {
+      icon.className = DeviceContext.isMobile
+        ? 'fa-solid fa-mobile-screen-button'
+        : DeviceContext.isTablet
+          ? 'fa-solid fa-tablet-screen-button'
+          : 'fa-solid fa-desktop';
+    }
+    if (devChipText) devChipText.textContent = devLabel;
+  }
 
   const ramNote = (DEVICE.ramTier === '8-15' || DEVICE.ramTier === '16+')
     ? ' <span class="ram8-note"><i class="fa-solid fa-bolt"></i>Rewind unlocked</span>'
@@ -1403,25 +2020,33 @@ function renderDeviceInfo() {
     ? ' <span class="ram8-note" style="background:rgba(125,255,159,.15);color:#7dff9f;border-color:rgba(125,255,159,.4)"><i class="fa-solid fa-circle-dot"></i>Recording ' + DEVICE.refreshRate + ' FPS</span>'
     : '';
 
+  const batteryNote = DeviceContext.state.battery.supported
+    ? ' <span class="sep">·</span> 🔋 ' + Math.round(DeviceContext.batteryLevel * 100) + '%' +
+      (DeviceContext.batteryCharging ? ' ⚡' : '')
+    : '';
+
   const sourceNote = DEVICE.ramSource === 'deviceMemory'
     ? ''
     : DEVICE.ramSource === 'override'
       ? ' <span style="color:#9fc4ff">(override)</span>'
-      : ' <span style="color:#6b7c93">(assumed — set profile below if wrong)</span>';
+      : DEVICE.ramSource === 'mobile-estimate' || DEVICE.ramSource === 'tablet-estimate'
+        ? ' <span style="color:#6b7c93">(est.)</span>'
+        : ' <span style="color:#6b7c93">(assumed — set profile below if wrong)</span>';
 
   const confPct = Math.round((DEVICE.refreshRateConfidence || 0) * 100);
 
   deviceText.innerHTML =
     '<b>' + tier + '</b>' +
+    ' <span class="sep">·</span> ' + devLabel +
     ' <span class="sep">·</span> GPU: <b>' + gpuLabel + '</b>' +
     (DEVICE.renderer && DEVICE.renderer !== 'unknown'
       ? ' <span style="color:#6b7c93">(' + escapeHtml(DEVICE.renderer) + ')</span>' : '') +
     ' <span class="sep">·</span> ' + DEVICE.cores + ' CPU cores' +
     ' <span class="sep">·</span> <b>' + DEVICE.ram + ' GB RAM</b>' + sourceNote +
-    ' <span class="sep">·</span> <b>' + (DEVICE.refreshRate || 60) + ' Hz</b> display' +
-    (confPct > 0 ? ' <span style="color:#6b7c93">(' + confPct + '% conf)</span>' : '') +
+    ' <span class="sep">·</span> <b>' + (DEVICE.refreshRate || 60) + ' Hz</b>' +
+    (confPct > 0 ? ' <span style="color:#6b7c93">(' + confPct + '%)</span>' : '') +
     ' <span class="sep">·</span> WebGL' + (DEVICE.webgl2 ? '2' : DEVICE.webgl ? '1' : ' ✗') +
-    ramNote + recNote;
+    batteryNote + ramNote + recNote;
 
   ramChipText.textContent = DEVICE.ram + ' GB';
   ramChip.classList.toggle('show', DEVICE.ramTier === '8-15' || DEVICE.ramTier === '16+');
@@ -1430,7 +2055,7 @@ function renderDeviceInfo() {
            DEVICE.webgl ? 'ok' : 'warn');
   setBadge(bgThreads, 'Threads: ' + (DEVICE.threads ? 'On ✓' : 'Off'),
            DEVICE.threads ? 'ok' : 'warn');
-  setBadge(bgDevice,  'Device: '  + tier.replace(' · ', '/'), 'info');
+  setBadge(bgDevice,  'Device: ' + devLabel, DeviceContext.isMobile ? 'warn' : 'info');
 
   const ramCls = DEVICE.ramTier === '8-15' || DEVICE.ramTier === '16+' ? 'ram8'
                : DEVICE.ram >= 4 ? 'ok' : 'warn';
@@ -1443,28 +2068,37 @@ function renderDeviceInfo() {
   const rr = DEVICE.refreshRate || 60;
   let rrCls, rrLabel;
   if (DEVICE.screenRecording) {
-    rrCls = 'ram8';
-    rrLabel = 'Display: ' + rr + ' Hz · REC ✓';
+    rrCls = 'ram8'; rrLabel = 'Display: ' + rr + ' Hz · REC ✓';
   } else if (rr >= 120) {
-    rrCls = 'ram8';
-    rrLabel = 'Display: ' + rr + ' Hz';
+    rrCls = 'ram8'; rrLabel = 'Display: ' + rr + ' Hz';
   } else if (rr >= 75) {
-    rrCls = 'ok';
-    rrLabel = 'Display: ' + rr + ' Hz';
+    rrCls = 'ok';   rrLabel = 'Display: ' + rr + ' Hz';
   } else if (rr >= 60) {
-    rrCls = 'info';
-    rrLabel = 'Display: ' + rr + ' Hz';
+    rrCls = 'info'; rrLabel = 'Display: ' + rr + ' Hz';
   } else {
-    rrCls = 'warn';
-    rrLabel = 'Display: ' + rr + ' Hz';
+    rrCls = 'warn'; rrLabel = 'Display: ' + rr + ' Hz';
   }
   setBadge(bgRefresh, rrLabel, rrCls);
+
+  const tuned = WebGLTuner.stats;
+  const pp = tuned.policy ? tuned.policy.powerPreference : '—';
+  setBadge(bgWebGL,
+    'WebGL: ' + (DEVICE.webgl ? (tuned.contextsTuned > 0 ? 'tuned ✓' : 'ready') : 'off') +
+    ' · ' + pp,
+    DEVICE.webgl ? (tuned.contextsTuned > 0 ? 'ram8' : 'ok') : 'warn');
+
+  setBadge(bgGpu, 'GPU: ' + gpuLabel,
+           DEVICE.gpuTier === 'high' ? 'ram8' : DEVICE.gpuTier === 'mid' ? 'ok' : 'warn');
+
+  if (mobileTip) {
+    mobileTip.classList.toggle('show', DeviceContext.isMobile || DeviceContext.isTablet);
+  }
 
   refreshRamFitChips();
 }
 
 /* ==========================================================================
-   11. SYNC UI  (fixed for 120 Hz auto-detect)
+   11. SYNC UI
    ========================================================================== */
 function updateFpsHint() {
   if (!fpsHint) return;
@@ -1473,18 +2107,14 @@ function updateFpsHint() {
 
   if (DEVICE.screenRecording && S.targetFps === 120) {
     fpsHint.innerHTML =
-      'Screen-recording profile: display measured at <b style="color:#7dff9f">' +
-      rr + ' Hz</b> — FPS locked to <b style="color:#7dff9f">120</b>' +
-      (conf > 0 ? ' (' + conf + '% confidence)' : '') + '.';
+      'Screen-recording profile: <b style="color:#7dff9f">' + rr + ' Hz</b> — FPS locked to <b style="color:#7dff9f">120</b>' +
+      (conf > 0 ? ' (' + conf + '%)' : '') + '.';
   } else if (rr >= 120) {
     fpsHint.innerHTML =
-      'High-refresh display detected (<b>' + rr + ' Hz</b>) — matched to ' +
-      '<b>' + S.targetFps + ' FPS</b>' +
-      (conf > 0 ? ' (' + conf + '% confidence)' : '') + '.';
+      'High-refresh display (<b>' + rr + ' Hz</b>) — matched to <b>' + S.targetFps + ' FPS</b>' +
+      (conf > 0 ? ' (' + conf + '%)' : '') + '.';
   } else if (rr >= 75) {
-    fpsHint.innerHTML =
-      'Display measured at <b>' + rr + ' Hz</b> — target FPS set to <b>' +
-      S.targetFps + '</b>.';
+    fpsHint.innerHTML = 'Display at <b>' + rr + ' Hz</b> — FPS set to <b>' + S.targetFps + '</b>.';
   } else {
     fpsHint.textContent =
       'Matched to your display refresh rate (' + rr + ' Hz). Screen recording ' +
@@ -1502,6 +2132,70 @@ function updateFpsHint() {
 
   if (fFps) {
     fFps.classList.toggle('screenrec', DEVICE.screenRecording && S.screenRecordingLock);
+  }
+}
+
+function updateContextHints() {
+  const mobile = DeviceContext.isMobile || DeviceContext.isTablet;
+  if (resHint) {
+    resHint.textContent = mobile
+      ? 'Mobile profile caps at 1× to protect battery and thermals.'
+      : '8 GB RAM unlocks up to 3× on light cores.';
+  }
+  if (renderHint) {
+    renderHint.textContent = mobile
+      ? 'WebGL preferred — Canvas only if hardware accel is unavailable.'
+      : 'WebGL is dramatically faster.';
+  }
+  if (rewindHint) {
+    rewindHint.textContent = mobile
+      ? 'Rewind disabled on mobile to save ~150 MB RAM and battery.'
+      : 'Auto-on for 8 GB on light/medium cores.';
+  }
+  if (upscaleHint) {
+    upscaleHint.textContent = mobile
+      ? 'Texture upscaling is off on mobile (thermal/battery).'
+      : '8 GB enables 2× textures on PSP/PS1.';
+  }
+}
+
+function updateRuntimeBadges() {
+  const status = AudioSync.status;
+  const drift = AudioSync.driftRatio || 1;
+  const driftPct = ((drift - 1) * 100);
+  if (status === 'locked') {
+    setBadge(bgAudio, 'Audio: Locked', 'ok');
+  } else if (status === 'drift') {
+    const sign = driftPct > 0 ? '+' : '';
+    setBadge(bgAudio, 'Audio: Drift ' + sign + driftPct.toFixed(1) + '%', 'warn');
+  } else {
+    setBadge(bgAudio, 'Audio: —', '');
+  }
+
+  const dropped = FramePacer.stats.dropped;
+  if (dropped > 0) {
+    setBadge(bgPacing, 'Pacing: 60.098 Hz · ' + dropped + ' drop', 'warn');
+  } else {
+    setBadge(bgPacing, 'Pacing: Fixed 60.098 Hz', 'info');
+  }
+
+  const tuned = WebGLTuner.stats;
+  const pp = tuned.policy ? tuned.policy.powerPreference : '—';
+  setBadge(bgWebGL,
+    'WebGL: ' + (DEVICE.webgl ? (tuned.contextsTuned > 0 ? 'tuned ✓' : 'ready') : 'off') +
+    ' · ' + pp,
+    DEVICE.webgl ? (tuned.contextsTuned > 0 ? 'ram8' : 'ok') : 'warn');
+
+  /* Live FPS in the panel badge (replaces the on-canvas HUD) */
+  if (bgFps) {
+    const target = S.targetFps || 60;
+    const fps = currentFps || FramePacer.stats.fps || 0;
+    if (emulatorBooted && fps > 0) {
+      const cls = fps >= target * 0.9 ? 'ok' : fps >= target * 0.7 ? 'warn' : 'bad';
+      setBadge(bgFps, 'FPS: ' + fps.toFixed(0) + ' / ' + target, cls);
+    } else {
+      setBadge(bgFps, 'FPS: —', '');
+    }
   }
 }
 
@@ -1544,6 +2238,7 @@ function reflectSettingsInUI() {
   fAudio.classList.toggle('ram-powered', isRamPowered('audio'));
 
   updateFpsHint();
+  updateContextHints();
 
   Array.from(presetRow.querySelectorAll('button')).forEach(function (b) {
     b.setAttribute('aria-pressed', b.dataset.preset === S.preset ? 'true' : 'false');
@@ -1551,20 +2246,17 @@ function reflectSettingsInUI() {
 
   perfPanel.classList.toggle('hidden', !S.showPerf);
   btnPerf.setAttribute('aria-pressed', S.showPerf ? 'true' : 'false');
-  fpsHud.classList.toggle('show', S.showFps);
-  btnFps.setAttribute('aria-pressed', S.showFps ? 'true' : 'false');
 
   const presetName = {
     'auto':'Auto-tuned ✓', 'ultra':'Ultra Perf', 'perf':'Performance',
     'balanced':'Balanced', 'quality':'Quality', 'ultra-q':'Ultra Quality', 'custom':'Custom'
   }[S.preset] || 'Custom';
   const ramBadge = (DEVICE.ramTier === '8-15' || DEVICE.ramTier === '16+')
-    ? ' · ' + DEVICE.ram + ' GB profile'
-    : '';
+    ? ' · ' + DEVICE.ram + ' GB profile' : '';
   const recBadge = DEVICE.screenRecording && S.screenRecordingLock
-    ? ' · REC ' + DEVICE.refreshRate + ' Hz'
-    : '';
-  stPerf.textContent = 'Profile: ' + presetName + ramBadge + recBadge;
+    ? ' · REC ' + DEVICE.refreshRate + ' Hz' : '';
+  const devBadge = ' · ' + DeviceContext.label();
+  stPerf.textContent = 'Profile: ' + presetName + devBadge + ramBadge + recBadge;
 
   if (currentCoreId) {
     const c = coreById(currentCoreId);
@@ -1593,8 +2285,17 @@ function applyAutoProfile(consoleWeight, silent) {
   Object.keys(S.autoFields).forEach(function (k) { S.autoFields[k] = true; });
   saveSettings(S);
   reflectSettingsInUI();
+  syncWebGLTunerWithCurrentCore();
   if (!silent) { toast('Auto-tuned for ' + consoleWeight + ' console'); showAutoBadge(tuned); }
   return tuned;
+}
+
+function syncWebGLTunerWithCurrentCore() {
+  const core = currentCoreId ? coreById(currentCoreId) : null;
+  const useNearest = (S.shader === 'off' || S.shader === '2x') &&
+                     (!core || core.weight !== 'heavy');
+  WebGLTuner.setForceNearest(useNearest);
+  WebGLTuner.refreshPolicy();
 }
 
 function showAutoBadge(tuned) {
@@ -1617,7 +2318,8 @@ function showAutoBadge(tuned) {
   autoBadge.innerHTML =
     '<i class="fa-solid fa-wand-magic-sparkles"></i> ' +
     '<span class="k">AUTO</span> ' +
-    '<span class="v">' + ramTag + recTag + preset.resolution + ' · ' + preset.fps + 'fps · ' +
+    '<span class="v">' + DeviceContext.label() + ' · ' + ramTag + recTag +
+    preset.resolution + ' · ' + preset.fps + 'fps · ' +
     preset.renderer + ' · skip ' + preset.skip + preset.rewind + preset.upscale + preset.shader + '</span>';
   autoBadge.classList.add('show');
   clearTimeout(autoBadgeTimer);
@@ -1656,6 +2358,7 @@ sRender.addEventListener('change', function () { S.renderer = sRender.value; mar
 sShader.addEventListener('change', function () {
   S.shader = sShader.value;
   markCustom();
+  syncWebGLTunerWithCurrentCore();
   if (S.shader === '3d') {
     toast('3D shader enabled — press Reset to apply.');
   } else {
@@ -1666,18 +2369,19 @@ sRewind.addEventListener('change', function () { S.rewind = sRewind.value; markC
 sUpscale.addEventListener('change', function () { S.upscale = sUpscale.value; markCustom(); });
 
 btnPerf.addEventListener('click', function () { S.showPerf = !S.showPerf; saveSettings(S); reflectSettingsInUI(); });
-btnFps.addEventListener('click',  function () { S.showFps  = !S.showFps;  saveSettings(S); reflectSettingsInUI(); });
 
 deviceOverrideSelect.addEventListener('change', function () {
   S.deviceOverride = deviceOverrideSelect.value;
   saveSettings(S);
   if (S.deviceOverride === 'auto') {
-    DEVICE.ram = (typeof navigator.deviceMemory === 'number') ? navigator.deviceMemory : 8;
-    DEVICE.ramSource = (typeof navigator.deviceMemory === 'number') ? 'deviceMemory' : 'estimate';
+    DEVICE.ram = (typeof navigator.deviceMemory === 'number') ? navigator.deviceMemory : (DeviceContext.isMobile ? 4 : 8);
+    DEVICE.ramSource = (typeof navigator.deviceMemory === 'number') ? 'deviceMemory' : (DeviceContext.isMobile ? 'mobile-estimate' : 'estimate');
     classifyDevice(DEVICE);
   } else {
     applyOverride();
   }
+  WebGLTuner.refreshPolicy();
+  DEVICE.powerPreference = WebGLTuner.stats.policy.powerPreference;
   renderDeviceInfo();
   if (S.preset === 'auto') {
     const c = currentCoreId ? coreById(currentCoreId) : null;
@@ -1691,6 +2395,22 @@ deviceOverrideSelect.addEventListener('change', function () {
 btnResetOverride.addEventListener('click', function () {
   deviceOverrideSelect.value = 'auto';
   deviceOverrideSelect.dispatchEvent(new Event('change'));
+});
+
+document.addEventListener('hexdevicechange', function () {
+  DEVICE.mobile = DeviceContext.isMobile || DeviceContext.isTablet;
+  DEVICE.touch = DeviceContext.isTouch;
+  WebGLTuner.refreshPolicy();
+  DEVICE.powerPreference = WebGLTuner.stats.policy.powerPreference;
+  renderDeviceInfo();
+  if (S.preset === 'auto') {
+    const c = currentCoreId ? coreById(currentCoreId) : null;
+    applyAutoProfile(c ? c.weight : 'light', true);
+  }
+});
+
+document.addEventListener('hexorientationchange', function () {
+  if (ThreeFX.active) setTimeout(function () { ThreeFX.resize(); }, 80);
 });
 
 /* ==========================================================================
@@ -1726,7 +2446,7 @@ function toast(msg) {
       'background:rgba(6,8,12,.9);color:#e8eef7;font-size:12px;font-weight:600;' +
       'padding:8px 14px;border-radius:8px;border:1px solid #2a3444;z-index:7;' +
       'pointer-events:none;transition:opacity .25s;will-change:opacity;contain:strict;' +
-      'display:inline-flex;align-items:center;gap:8px;';
+      'display:inline-flex;align-items:center;gap:8px;max-width:90%;text-align:center;';
     overlay.parentElement.appendChild(toastEl);
   }
   toastEl.innerHTML = '<i class="fa-solid fa-circle-check" style="color:#7dff9f;font-size:12px"></i>' + msg;
@@ -1741,14 +2461,12 @@ function toast(msg) {
 const ThreeFX = (function () {
   let renderer = null, scene = null, camera = null, material = null;
   let texture = null, overlayCanvas = null, sourceCanvas = null;
-  let rafId = 0, active = false;
-  let onResizeHandler = null;
+  let unsubscribe = null, active = false;
   let intensity = 1.0;
   let hasContent = false;
+  let lastResizeW = 0, lastResizeH = 0;
 
-  function isAvailable() {
-    return typeof THREE !== 'undefined';
-  }
+  function isAvailable() { return typeof THREE !== 'undefined'; }
 
   function loadThree() {
     return new Promise(function (resolve, reject) {
@@ -1849,6 +2567,8 @@ const ThreeFX = (function () {
         canvas: overlayCanvas,
         antialias: false,
         alpha: false,
+        depth: false,
+        stencil: false,
         powerPreference: 'high-performance',
         preserveDrawingBuffer: false
       });
@@ -1866,8 +2586,8 @@ const ThreeFX = (function () {
     camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
     texture = new THREE.CanvasTexture(sourceCanvas);
-    texture.minFilter = THREE.LinearFilter;
-    texture.magFilter = THREE.LinearFilter;
+    texture.minFilter = THREE.NearestFilter;
+    texture.magFilter = THREE.NearestFilter;
     texture.wrapS = THREE.ClampToEdgeWrapping;
     texture.wrapT = THREE.ClampToEdgeWrapping;
     texture.generateMipmaps = false;
@@ -1901,10 +2621,40 @@ const ThreeFX = (function () {
     active = true;
     setIntensity(intensity);
     resize();
-    onResizeHandler = function () { resize(); };
-    window.addEventListener('resize', onResizeHandler);
-    loop();
+
+    unsubscribe = FramePacer.subscribe(tick);
+    FramePacer.start();
     return true;
+  }
+
+  function tick() {
+    if (!active) return;
+    if (!sourceCanvas || !renderer || !material) return;
+    if (sourceCanvas.width === 0 || sourceCanvas.height === 0) {
+      overlayCanvas.style.display = 'none';
+      return;
+    }
+    if (!hasContent) {
+      hasContent = true;
+      overlayCanvas.style.display = 'block';
+      resize();
+    }
+    const shell = document.getElementById('emulator-shell');
+    if (shell) {
+      const w = shell.clientWidth, h = shell.clientHeight;
+      if (w !== lastResizeW || h !== lastResizeH) {
+        lastResizeW = w; lastResizeH = h;
+        resize();
+      }
+    }
+    try {
+      texture.needsUpdate = true;
+      material.uniforms.uTime.value = performance.now() * 0.001;
+      renderer.render(scene, camera);
+    } catch (e) {
+      console.warn('[ThreeFX] render error, disposing:', e);
+      dispose();
+    }
   }
 
   function resize() {
@@ -1925,37 +2675,10 @@ const ThreeFX = (function () {
     }
   }
 
-  function loop() {
-    if (!active) return;
-    rafId = requestAnimationFrame(loop);
-    if (!sourceCanvas || !renderer || !material) return;
-    if (sourceCanvas.width === 0 || sourceCanvas.height === 0) {
-      overlayCanvas.style.display = 'none';
-      return;
-    }
-    if (!hasContent) {
-      hasContent = true;
-      overlayCanvas.style.display = 'block';
-      resize();
-    }
-    try {
-      texture.needsUpdate = true;
-      material.uniforms.uTime.value = performance.now() * 0.001;
-      renderer.render(scene, camera);
-    } catch (e) {
-      console.warn('[ThreeFX] render error, disposing:', e);
-      dispose();
-    }
-  }
-
   function dispose() {
     if (!active && !overlayCanvas) return;
     active = false;
-    if (rafId) { cancelAnimationFrame(rafId); rafId = 0; }
-    if (onResizeHandler) {
-      window.removeEventListener('resize', onResizeHandler);
-      onResizeHandler = null;
-    }
+    if (unsubscribe) { unsubscribe(); unsubscribe = null; }
     if (overlayCanvas && overlayCanvas.parentNode) {
       try { overlayCanvas.parentNode.removeChild(overlayCanvas); } catch (e) {}
     }
@@ -1969,6 +2692,7 @@ const ThreeFX = (function () {
     if (renderer) { try { renderer.dispose(); } catch (e) {} }
     renderer = scene = camera = material = texture = overlayCanvas = sourceCanvas = null;
     hasContent = false;
+    lastResizeW = 0; lastResizeH = 0;
   }
 
   function setIntensity(level) {
@@ -1983,7 +2707,11 @@ const ThreeFX = (function () {
   }
 
   function autoIntensity() {
-    if (DEVICE.gpuTier === 'low' || DEVICE.mobile) return 0.55;
+    if (DeviceContext.isMobile) {
+      return DEVICE.gpuTier === 'high' ? 0.7 : 0.4;
+    }
+    if (DeviceContext.isTablet) return 0.7;
+    if (DEVICE.gpuTier === 'low') return 0.55;
     if (DEVICE.gpuTier === 'mid') return 0.8;
     return 1.0;
   }
@@ -2001,8 +2729,10 @@ const ThreeFX = (function () {
 
 function attachThreeFX() {
   if (S.shader !== '3d') return;
-  if (!DEVICE.webgl) {
-    console.warn('[ThreeFX] skipped — WebGL not available');
+  if (!DEVICE.webgl) return;
+  if (DeviceContext.isMobile && DEVICE.gpuTier === 'low') {
+    console.warn('[ThreeFX] skipped — mobile low-end GPU');
+    toast('3D shader skipped on this mobile GPU');
     return;
   }
   let attempts = 0;
@@ -2037,6 +2767,7 @@ function ejsShaderName(shader) {
 }
 
 function buildBaseOptions() {
+  const mobile = DeviceContext.isMobile || DeviceContext.isTablet;
   const opts = {
     'save-state-location':'browser',
     'shader': ejsShaderName(S.shader),
@@ -2045,9 +2776,15 @@ function buildBaseOptions() {
     'fps': S.targetFps,
     'volume': 1.0
   };
-  if (S.audio === 'low')       opts.audioBufferSize = 1024;
-  else if (S.audio === 'high') opts.audioBufferSize = 8192;
-  else                         opts.audioBufferSize = 2048;
+  if (mobile) {
+    opts.audioBufferSize = S.audio === 'high' ? 4096 : 1024;
+  } else if (S.audio === 'low') {
+    opts.audioBufferSize = 1024;
+  } else if (S.audio === 'high') {
+    opts.audioBufferSize = 8192;
+  } else {
+    opts.audioBufferSize = 2048;
+  }
 
   if (S.frameSkip === 'auto') opts.frameskip = 'auto';
   else if (S.frameSkip === '0') opts.frameskip = 0;
@@ -2060,6 +2797,7 @@ function buildCoreOptions(coreId) {
   const useWebGL = (S.renderer === 'webgl' || (S.renderer === 'auto' && DEVICE.webgl));
   const ramHigh = DEVICE.ramTier === '8-15' || DEVICE.ramTier === '16+';
   const ramUltra = DEVICE.ramTier === '16+';
+  const mobile = DeviceContext.isMobile || DeviceContext.isTablet;
 
   switch (coreId) {
     case 'psp':
@@ -2071,14 +2809,15 @@ function buildCoreOptions(coreId) {
       o['ppsspp_multithreaded'] = DEVICE.threads ? 'enabled' : 'disabled';
       o['ppsspp_software_rendering'] = !useWebGL;
       o['ppsspp_internal_resolution'] =
-        res >= 3 ? '3x' : res >= 2 ? '2x' : res >= 1.5 ? '1.5x' : res >= 1 ? '1x' : '0.5x';
-      o['ppsspp_texture_scaling_level'] = S.upscale === '2x' ? '2' : '0';
+        mobile ? (res >= 2 ? '1x' : '0.5x')
+               : (res >= 3 ? '3x' : res >= 2 ? '2x' : res >= 1.5 ? '1.5x' : res >= 1 ? '1x' : '0.5x');
+      o['ppsspp_texture_scaling_level'] = (!mobile && S.upscale === '2x') ? '2' : '0';
       o['ppsspp_rendering_mode'] = 'buffered';
       o['ppsspp_auto_frameskip'] = S.frameSkip === 'auto';
       o['ppsspp_vertex_cache'] = 'enabled';
-      o['ppsspp_lazy_texture_caching'] = heavy ? 'enabled' : 'disabled';
-      o['ppsspp_texture_replacement'] = ramUltra ? 'enabled' : 'disabled';
-      if (ramHigh) {
+      o['ppsspp_lazy_texture_caching'] = (heavy && !mobile) ? 'enabled' : 'disabled';
+      o['ppsspp_texture_replacement'] = (!mobile && ramUltra) ? 'enabled' : 'disabled';
+      if (ramHigh && !mobile) {
         o['ppsspp_texture_cache_scale'] = '2';
         o['ppsspp_gpu_rendering'] = 'enabled';
       }
@@ -2100,7 +2839,7 @@ function buildCoreOptions(coreId) {
     case 'gba':
       o['mgba_gb_model'] = 'Autodetect';
       o['mgba_color_correction'] = 'OFF';
-      o['mgba_interframe_blending'] = ramHigh ? 'mix' : 'OFF';
+      o['mgba_interframe_blending'] = (ramHigh && !mobile) ? 'mix' : 'OFF';
       o['mgba_idle_optimization'] = 'Remove Known';
       o['mgba_frameskip'] = S.frameSkip === 'auto' ? 'auto' : (parseInt(S.frameSkip, 10) || 0);
       break;
@@ -2111,11 +2850,12 @@ function buildCoreOptions(coreId) {
       o['mupen64plus-video-plugin'] = useWebGL ? 'glide64' : 'rice';
       o['mupen64plus-FrameDuping'] = 'True';
       o['mupen64plus-Framerate'] = 'Original';
-      o['mupen64plus-Resolution'] = res >= 3 ? '960x720' : res >= 2 ? '640x480' : '320x240';
-      o['mupen64plus-BilinearMode'] = res >= 2 ? 'standard' : 'basic';
+      o['mupen64plus-Resolution'] = mobile ? '320x240'
+        : (res >= 3 ? '960x720' : res >= 2 ? '640x480' : '320x240');
+      o['mupen64plus-BilinearMode'] = (res >= 2 && !mobile) ? 'standard' : 'basic';
       o['mupen64plus-EnableFBEmulation'] = 'False';
       o['mupen64plus-EnableLegacyBlending'] = 'False';
-      if (ramUltra) o['mupen64plus-TextureFiltering'] = '3';
+      if (ramUltra && !mobile) o['mupen64plus-TextureFiltering'] = '3';
       break;
 
     case 'psx':
@@ -2123,7 +2863,7 @@ function buildCoreOptions(coreId) {
       o['pcsx_rearmed_gpu_thread_rendering'] = DEVICE.threads ? 'enabled' : 'disabled';
       o['pcsx_rearmed_drc'] = 'enabled';
       o['pcsx_rearmed_psx_clock'] = '57';
-      if (ramHigh) {
+      if (ramHigh && !mobile) {
         o['pcsx_rearmed_memcard1'] = 'enabled';
         o['pcsx_rearmed_show_bios'] = 'disabled';
       }
@@ -2131,11 +2871,11 @@ function buildCoreOptions(coreId) {
 
     case 'nds':
       o['desmume_cpu_mode'] = DEVICE.threads ? 'jit' : 'interpreter';
-      o['desmume_arm9_clock'] = res >= 2 ? '67' : '57';
+      o['desmume_arm9_clock'] = (res >= 2 && !mobile) ? '67' : '57';
       o['desmume_frameskip'] = S.frameSkip === 'auto' ? 'auto' : (parseInt(S.frameSkip, 10) || 0);
       o['desmume_use_cores'] = DEVICE.threads ? '2' : '1';
       o['desmume_renderer'] = useWebGL ? 'opengl' : 'software';
-      if (ramHigh) {
+      if (ramHigh && !mobile) {
         o['desmume_num_cores'] = '2';
         o['desmume_jit_block_size'] = '100';
       }
@@ -2150,13 +2890,13 @@ function buildCoreOptions(coreId) {
 
     case 'segaMD': case 'sega32x': case 'segaMS':
       o['genesis_plus_gx_frameskip'] = S.frameSkip === 'auto' ? 'auto' : (parseInt(S.frameSkip, 10) || 0);
-      o['genesis_plus_gx_overclock'] = ramHigh ? '150' : '100';
+      o['genesis_plus_gx_overclock'] = (ramHigh && !mobile) ? '150' : '100';
       o['genesis_plus_gx_bios'] = 'Auto';
       break;
 
     case 'pce':
       o['pce_frameskip'] = S.frameSkip === 'auto' ? 'auto' : (parseInt(S.frameSkip, 10) || 0);
-      o['pce_nospritelimit'] = ramHigh ? 'enabled' : 'disabled';
+      o['pce_nospritelimit'] = (ramHigh && !mobile) ? 'enabled' : 'disabled';
       break;
 
     case 'vb':
@@ -2168,41 +2908,28 @@ function buildCoreOptions(coreId) {
 }
 
 /* ==========================================================================
-   16. FPS MONITOR
+   16. FPS MONITOR (FramePacer-driven, updates only the panel badge)
    ========================================================================== */
 function stopFpsMonitor() {
-  if (fpsRafId) cancelAnimationFrame(fpsRafId);
-  fpsRafId = 0;
-  framesInWindow = 0;
+  if (fpsUnsubscribe) { fpsUnsubscribe(); fpsUnsubscribe = null; }
+  FramePacer.stop();
   currentFps = 0;
 }
+
 function startFpsMonitor() {
   stopFpsMonitor();
-  windowStart = performance.now();
-  lastFrameTime = windowStart;
-  framesInWindow = 0;
-  function loop(now) {
+  FramePacer.start();
+
+  fpsUnsubscribe = FramePacer.subscribe(function (now) {
     if (!emulatorBooted) return;
-    fpsRafId = requestAnimationFrame(loop);
-    framesInWindow++;
-    const dt = now - lastFrameTime;
-    lastFrameTime = now;
-    if (now - windowStart >= 500) {
-      currentFps = (framesInWindow * 1000) / (now - windowStart);
-      framesInWindow = 0;
-      windowStart = now;
-      if (S.showFps) {
-        const recTarget = DEVICE.screenRecording ? 120 : 55;
-        hudFps.textContent = currentFps.toFixed(0);
-        hudFps.className = currentFps >= recTarget ? '' : currentFps >= recTarget * 0.7 ? 'warn' : 'bad';
-        const ft = dt.toFixed(1) + 'ms';
-        hudFt.textContent = ft;
-        const ftBudget = DEVICE.screenRecording ? 8.5 : 20;
-        hudFt.className = dt <= ftBudget ? '' : dt <= ftBudget * 1.5 ? 'warn' : 'bad';
-      }
+    currentFps = FramePacer.stats.fps;
+
+    /* Refresh badges (incl. the FPS badge) about once per second */
+    if (now - lastBadgeUpdate > 1000) {
+      lastBadgeUpdate = now;
+      updateRuntimeBadges();
     }
-  }
-  fpsRafId = requestAnimationFrame(loop);
+  });
 }
 
 /* ==========================================================================
@@ -2216,6 +2943,7 @@ function teardown() {
   clearBootWatchdog();
   stopFpsMonitor();
   ThreeFX.dispose();
+  AudioSync.stop();
   try {
     if (window.EJS_emulator && typeof window.EJS_emulator.destroy === 'function') {
       window.EJS_emulator.destroy();
@@ -2256,6 +2984,19 @@ function injectLoader() {
   });
 }
 
+function tuneEmulatorAfterBoot() {
+  const c = gameEl.querySelector('canvas');
+  if (c) {
+    try {
+      const gl = c.getContext('webgl2') ||
+                 c.getContext('webgl') ||
+                 c.getContext('experimental-webgl');
+      if (gl) WebGLTuner.tuneContext(gl);
+    } catch (e) {}
+  }
+  AudioSync.start();
+}
+
 /* ==========================================================================
    18. BOOT
    ========================================================================== */
@@ -2267,6 +3008,8 @@ function bootEmulator(coreId, src, gameName) {
   if (S.preset === 'auto' || !PRESETS[S.preset]) {
     applyAutoProfile(coreInfo.weight, true);
   }
+
+  syncWebGLTunerWithCurrentCore();
 
   window.EJS_player = '#game';
   window.EJS_core = coreId;
@@ -2310,6 +3053,8 @@ function bootEmulator(coreId, src, gameName) {
       card.querySelector('h3').appendChild(tag);
     }
 
+    tuneEmulatorAfterBoot();
+
     if (S.shader === '3d') {
       ThreeFX.setIntensity(S.threefxIntensity * ThreeFX.autoIntensity());
       attachThreeFX();
@@ -2318,11 +3063,14 @@ function bootEmulator(coreId, src, gameName) {
 
   const presetText = S.preset === 'auto' ? 'auto-tuned for this console' : 'preset: ' + S.preset;
   const ramLine = (DEVICE.ramTier === '8-15' || DEVICE.ramTier === '16+')
-    ? ' <b style="color:#7dff9f">' + DEVICE.ram + ' GB profile active</b>.'
-    : '';
+    ? ' <b style="color:#7dff9f">' + DEVICE.ram + ' GB profile active</b>.' : '';
   const recLine = (DEVICE.screenRecording && S.screenRecordingLock)
-    ? ' <b style="color:#7dff9f">Screen-recording ' + DEVICE.refreshRate + ' Hz detected</b> — target locked to 120 FPS.'
-    : '';
+    ? ' <b style="color:#7dff9f">Screen-recording ' + DEVICE.refreshRate + ' Hz detected</b> — target locked to 120 FPS.' : '';
+  const devLine = DeviceContext.isMobile
+    ? ' <b style="color:#ffb020">Mobile WebGL profile active</b> — conservative flags for battery/thermals.'
+    : DeviceContext.isTablet
+      ? ' <b style="color:#ffb020">Tablet WebGL profile active</b>.'
+      : ' <b style="color:#9fc4ff">Desktop WebGL profile active</b> — high-performance flags.';
 
   setState('Loading core…', 'load');
   setCore(coreInfo.label + ' (' + coreInfo.system + ')');
@@ -2330,7 +3078,7 @@ function bootEmulator(coreId, src, gameName) {
   showOverlay('Loading ' + coreInfo.label + '…',
     'Downloading core <code>' + escapeHtml(coreInfo.system) + '</code>. Optimized ' + presetText +
     ' (res ' + S.resolution.toFixed(1) + '×, ' + S.targetFps + 'fps, ' +
-    (S.renderer === 'auto' ? 'auto render' : S.renderer) + ').' + ramLine + recLine +
+    (S.renderer === 'auto' ? 'auto render' : S.renderer) + ').' + devLine + ramLine + recLine +
     ' First load of a heavy core can take 10–30 s.', true);
   setProgress(5);
 
@@ -2338,28 +3086,26 @@ function bootEmulator(coreId, src, gameName) {
   allowRetry = true;
   clearBootWatchdog();
   bootWatchdog = setTimeout(function () {
-    if (!emulatorBooted) {
-      console.warn('[Boot] watchdog fired for core', coreId);
-      if (allowRetry && coreId === 'j2me' && window.EJS_threads) {
-        allowRetry = false;
-        toast('J2ME watchdog — retrying without threads…');
-        window.EJS_threads = false;
-        window.EJS_defaultOptions = Object.assign({}, buildBaseOptions(), buildCoreOptions(coreId));
-        setState('Retrying without threads…', 'load');
-        bootEmulatorNoRetry(coreId, src, gameName);
-        return;
-      }
-      setState('Core load timeout', 'err');
-      showOverlay('Core did not finish loading',
-        'The <code>' + escapeHtml(coreInfo.system) + '</code> core did not become ready in time.<br/><br/>' +
-        'This is a common issue with the <b>J2ME</b> core on some networks — the CDN ' +
-        'may be serving <code>j2me-legacy-wasm.data</code> slowly, or a browser ' +
-        'extension is blocking it.<br/><br/>' +
-        'Try:<br/>' +
-        '• Disable ad-blockers for <code>cdn.emulatorjs.org</code><br/>' +
-        '• Switch to a different network<br/>' +
-        '• Press <b>Reset</b> to retry', false);
+    if (emulatorBooted) return;
+    console.warn('[Boot] watchdog fired for core', coreId);
+
+    if (allowRetry && window.EJS_threads) {
+      allowRetry = false;
+      toast('Retrying without threads…');
+      window.EJS_threads = false;
+      window.EJS_defaultOptions = Object.assign({}, buildBaseOptions(), buildCoreOptions(coreId));
+      setState('Retrying without threads…', 'load');
+      bootEmulatorNoRetry(coreId, src, gameName);
+      return;
     }
+
+    setState('Core load timeout', 'err');
+    showOverlay('Core did not finish loading',
+      'The <code>' + escapeHtml(coreInfo.system) + '</code> core did not become ready in time.<br/><br/>' +
+      'Try:<br/>' +
+      '• Disable ad-blockers for <code>cdn.emulatorjs.org</code><br/>' +
+      '• Switch to a different network<br/>' +
+      '• Press <b>Reset</b> to retry', false);
   }, 30000);
 
   return injectLoader().catch(function (err) {
@@ -2403,6 +3149,7 @@ function bootEmulatorNoRetry(coreId, src, gameName) {
     enableControls(true);
     startFpsMonitor();
     setBadge(bgCore, 'Core: ' + coreInfo.system, 'info');
+    tuneEmulatorAfterBoot();
     if (S.shader === '3d') {
       ThreeFX.setIntensity(S.threefxIntensity * ThreeFX.autoIntensity());
       attachThreeFX();
@@ -2451,10 +3198,7 @@ function fetchRomBlob(url, onProgress) {
     return new Promise(function (resolve, reject) {
       function pump() {
         reader.read().then(function (r) {
-          if (r.done) {
-            resolve(new Blob(chunks, { type: type }));
-            return;
-          }
+          if (r.done) { resolve(new Blob(chunks, { type: type })); return; }
           chunks.push(r.value);
           received += r.value.length;
           if (onProgress) onProgress(received, total);
@@ -2471,7 +3215,6 @@ function loadFromRemoteUrl(rawInput) {
   if (!raw) { urlInput.focus(); return; }
 
   const url = normalizeUrl(raw);
-
   const tail = url.split('/').pop().split('?')[0].split('#')[0] || 'game';
   const name = safeDecode(tail);
   const ext  = extOf(name);
@@ -2605,9 +3348,7 @@ btnLoad.addEventListener('click', function () {
   else showOverlay('No game selected', 'Open a file or paste a URL first.', false);
 });
 
-btnLoadUrl.addEventListener('click', function () {
-  loadFromRemoteUrl(urlInput.value);
-});
+btnLoadUrl.addEventListener('click', function () { loadFromRemoteUrl(urlInput.value); });
 
 btnLoadDef.addEventListener('click', function () {
   urlInput.value = DEFAULT_ROM_URL;
@@ -2647,10 +3388,12 @@ btnStop.addEventListener('click', function () {
   currentGameName = '';
   currentCoreId = '';
   setBadge(bgCore, 'Core: —');
+  setBadge(bgFps, 'FPS: —');
   coreCardsEl.querySelectorAll('.auto-pick').forEach(function (el) { el.remove(); });
   showOverlay('Stopped', 'Open another file or paste a URL to start a new game.', false);
 });
 
+/* Drag-and-drop (desktop) */
 (function bindDragDrop() {
   const shell = $('emulator-shell');
   ['dragenter','dragover'].forEach(function (ev) {
@@ -2668,9 +3411,35 @@ btnStop.addEventListener('click', function () {
   });
 })();
 
+/* Double-tap on the emulator shell to toggle fullscreen (mobile-friendly) */
+(function bindDoubleTapFullscreen() {
+  const shell = $('emulator-shell');
+  let lastTap = 0;
+  shell.addEventListener('touchend', function () {
+    const now = Date.now();
+    if (now - lastTap < 300) {
+      lastTap = 0;
+      btnFull.click();
+    } else {
+      lastTap = now;
+    }
+  }, { passive: true });
+})();
+
+/* Prevent pull-to-refresh inside the emulator shell */
+(function preventPullToRefresh() {
+  const shell = $('emulator-shell');
+  shell.addEventListener('touchmove', function (e) {
+    if (e.touches.length > 1) return;
+    const y = e.touches[0].clientY;
+    if (y < 12) e.preventDefault();
+  }, { passive: false });
+})();
+
+/* Hotkey: Ctrl+Shift+P toggles the performance panel.
+   Ctrl+Shift+F is no longer bound — the on-canvas FPS HUD was removed. */
 window.addEventListener('keydown', function (e) {
   if (e.ctrlKey && e.shiftKey && e.code === 'KeyP') { e.preventDefault(); btnPerf.click(); }
-  if (e.ctrlKey && e.shiftKey && e.code === 'KeyF') { e.preventDefault(); btnFps.click(); }
 });
 
 window.addEventListener('resize', function () {
@@ -2687,16 +3456,10 @@ btnLoadUrl.disabled = false;
 btnLoadDef.disabled = false;
 urlInput.value = DEFAULT_ROM_URL;
 
-/* First render with the initial 60 Hz guess */
 renderDeviceInfo();
 reflectSettingsInUI();
 if (!S.showPerf) perfPanel.classList.add('hidden');
 
-/* Run the improved refresh-rate measurement. When it completes, we:
-     - update DEVICE.refreshRate / screenRecording
-     - refresh the device banner + badges
-     - re-run the auto-tuner if the user is on the Auto preset
-     - reflect the new target FPS in the settings section            */
 measureRefreshRate(function (hz) {
   DEVICE.refreshRate = hz;
   renderDeviceInfo();
@@ -2705,7 +3468,6 @@ measureRefreshRate(function (hz) {
     const c = currentCoreId ? coreById(currentCoreId) : null;
     const tuned = applyAutoProfile(c ? c.weight : 'light', true);
     reflectSettingsInUI();
-    /* Toast only if the auto-detected rate implies a meaningful change */
     if (hz >= 100 && hz <= 144 && S.screenRecordingLock) {
       toast('Screen-recording display detected — ' + hz + ' Hz, FPS locked to 120.');
     } else if (hz >= 100) {
@@ -2715,7 +3477,6 @@ measureRefreshRate(function (hz) {
     }
     showAutoBadge(tuned);
   } else {
-    /* Manual preset — just refresh the UI so the badge/hint reflect the Hz */
     reflectSettingsInUI();
   }
 });
@@ -2725,11 +3486,17 @@ const ramGreeting = (DEVICE.ramTier === '8-15' || DEVICE.ramTier === '16+')
     'rewind, CRT shaders, high audio buffer, and 2× textures are auto-enabled on supported cores.'
   : '';
 
+const deviceGreeting = DeviceContext.isMobile
+  ? ' <b style="color:#ffb020">Mobile WebGL profile active</b> — depth/stencil/antialias off, ' +
+    'power preference balanced, resolution capped at 1× for battery life.'
+  : DeviceContext.isTablet
+    ? ' <b style="color:#ffb020">Tablet WebGL profile active</b>.'
+    : ' <b style="color:#9fc4ff">Desktop WebGL profile active</b> — high-performance flags.';
+
 showOverlay('HEX Web Emulator',
   'Click <b>Load Default ROM</b> to play Super Mario Bros., or open any ROM/ISO. ' +
-  'Console detection and graphics tuning happen automatically. ' +
-  'Screen-recording displays at 100–144 Hz auto-lock the emulator to 120 FPS.' +
-  ramGreeting, false);
+  'Console detection and graphics tuning happen automatically.' +
+  deviceGreeting + ramGreeting, false);
 
 if (!DEVICE.webgl) {
   setTimeout(function () {
@@ -2738,12 +3505,18 @@ if (!DEVICE.webgl) {
   }, 900);
 }
 
+updateRuntimeBadges();
+
 /* ==========================================================================
    22. PUBLIC API
+   --------------------------------------------------------------------------
+   Note: toggleFps()/showFps() are kept as no-ops for backward compatibility
+   so any code calling them does not break. The on-canvas HUD is gone.
    ========================================================================== */
 window.RetroWeb = {
   cores: CORES,
   device: DEVICE,
+  deviceContext: DeviceContext,
   settings: S,
   defaultRomUrl: DEFAULT_ROM_URL,
   normalizeUrl: normalizeUrl,
@@ -2763,24 +3536,35 @@ window.RetroWeb = {
       applyAutoProfile(c ? c.weight : 'light', true);
     }
   },
+  /* Deprecated: the on-canvas FPS HUD was removed. Live FPS is always
+     available in the Performance panel's FPS badge. These are kept as
+     no-ops so legacy callers do not throw. */
+  toggleFps: function () { return false; },
+  showFps: function () {},
   load: function (coreId, src, name) { currentCoreId = coreId; startGame(coreId, src, name || 'game'); },
   loadUrl: function (url) { loadFromRemoteUrl(url); },
   loadDefault: function () { btnLoadDef.click(); },
   stop: function () { btnStop.click(); },
   reset: function () { btnReset.click(); },
   threefx: ThreeFX,
+  webglTuner: WebGLTuner,
+  audioSync: AudioSync,
+  framePacer: FramePacer,
+  gcGuard: GCGuard,
   get emulator() { return window.EJS_emulator || null; },
   get fps() { return currentFps; },
   get refreshRate() { return DEVICE.refreshRate; },
-  get screenRecording() { return DEVICE.screenRecording; }
+  get screenRecording() { return DEVICE.screenRecording; },
+  get isMobile() { return DeviceContext.isMobile; },
+  get isTablet() { return DeviceContext.isTablet; },
+  get isDesktop() { return DeviceContext.isDesktop; },
+  get isTouch() { return DeviceContext.isTouch; },
+  get webglPolicy() { return WebGLTuner.stats.policy; }
 };
 
 })();
 </script>
 
-<!-- ==========================================================================
-     Keyboard hardening (consolidated).
-     ========================================================================== -->
 <script>
 (function () {
   'use strict';
@@ -2794,34 +3578,21 @@ window.RetroWeb = {
   document.addEventListener('keydown', function (e) {
     var code = e.keyCode || e.which;
 
-    if (e.ctrlKey && e.shiftKey && (code === 80 || code === 70)) {
-      return;
-    }
+    /* Allow Ctrl+Shift+P (toggle panel) */
+    if (e.ctrlKey && e.shiftKey && code === 80) return;
 
     if (code === 123) return block(e);
-
-    if (e.ctrlKey && e.shiftKey && (code === 73 || code === 74 || code === 67)) {
-      return block(e);
-    }
-
+    if (e.ctrlKey && e.shiftKey && (code === 73 || code === 74 || code === 67)) return block(e);
     if (e.ctrlKey && e.shiftKey && code === 75) return block(e);
-
-    if (e.altKey && (e.ctrlKey || e.metaKey) && (code === 73 || code === 74)) {
-      return block(e);
-    }
-
+    if (e.altKey && (e.ctrlKey || e.metaKey) && (code === 73 || code === 74)) return block(e);
     if (e.ctrlKey && code === 85) return block(e);
     if (e.ctrlKey && code === 83) return block(e);
-
     if (e.ctrlKey && !e.shiftKey && !e.altKey) {
       if (code === 65 || code === 67 || code === 88 || code === 86 ||
           code === 89 || code === 90 || code === 72 || code === 70 ||
-          code === 69) {
-        return block(e);
-      }
+          code === 69) return block(e);
     }
-
-    if (e.metaKey && (code === 86)) return block(e);
+    if (e.metaKey && code === 86) return block(e);
     if (e.metaKey && e.altKey) return block(e);
   }, true);
 
